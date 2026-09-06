@@ -14,7 +14,10 @@ import { MessageAttachmentCard } from "@/components/message-attachment-card";
 import { MessageDetailSkeleton } from "@/components/page-skeletons";
 import { usePageLoading } from "@/components/page-loading";
 import { PreviousMessage } from "@/components/previous-message";
+import { ConversationThread } from "@/components/messages/conversation-thread";
+import { useMessageThread } from "@/components/messages/use-message-thread";
 import { getMessageBackHref } from "@/components/message-actions/utils";
+import { getEmailAddress, getEmailDisplayName, splitEmailAddressList } from "@/lib/email/address";
 import type { MessageAttachment, MessageDetailResponse } from "./types";
 import {
   fetchMessageDetail,
@@ -22,6 +25,7 @@ import {
   getCachedMessageDetailForDisplay,
   getMessageBodyDisplay,
   getMessageHeaderParties,
+  getOwnAddressForMessage,
   resolveInlineAttachmentUrls,
 } from "./utils";
 import { extractCloudAttachments } from "./cloud-attachment-utils";
@@ -29,13 +33,14 @@ import { sanitizeEmailHtml } from "./email-html-sanitizer";
 
 export default function MessageDetailPage() {
   const params = useParams<{ messageId: string }>();
-  const { selectedMailbox } = useSelectedMailbox();
+  const { selectedMailbox, mailboxes } = useSelectedMailbox();
   const messageId = params.messageId;
   const [data, setData] = useState<MessageDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewAttachment, setPreviewAttachment] =
     useState<MessageAttachment | null>(null);
   usePageLoading(loading);
+  const thread = useMessageThread(messageId, data?.message?.threadId);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,14 +86,23 @@ export default function MessageDetailPage() {
   }
 
   const { message, body, attachments = [] } = data;
+  const messageMailbox =
+    mailboxes.find((mailbox) => mailbox.id === message.mailboxId) ?? selectedMailbox;
   const currentAccountName =
-    selectedMailbox?.displayName ?? selectedMailbox?.localPart;
+    messageMailbox?.displayName ?? messageMailbox?.localPart;
   const { fromName, fromAddress, toName } = getMessageHeaderParties(
     message,
     currentAccountName,
   );
-  const ownAddress =
-    message.direction === "inbound" ? message.toAddr : message.fromAddr;
+  const ownAddresses = messageMailbox
+    ? messageMailbox.senderAddresses?.length
+      ? messageMailbox.senderAddresses
+      : [`${messageMailbox.localPart}@${messageMailbox.hostname}`]
+    : [];
+  const ownAddress = getOwnAddressForMessage(message, ownAddresses);
+  const toEntries = splitEmailAddressList(message.toAddr);
+  const ccEntries = splitEmailAddressList(message.ccAddr);
+  const bccEntries = splitEmailAddressList(message.bccAddr);
   const bodyDisplay = getMessageBodyDisplay(
     body?.textBody,
     body?.htmlBody,
@@ -128,8 +142,17 @@ export default function MessageDetailPage() {
           subject={message.subject}
           bodyText={body?.textBody}
           ownAddress={ownAddress}
+          ownAddresses={ownAddresses}
+          message={message}
         />
       </div>
+      <ConversationThread
+        currentMessageId={message.id}
+        position="before"
+        messages={thread.messages}
+        mailboxId={message.mailboxId}
+        currentAccountName={currentAccountName}
+      />
       <article className="px-6 py-4">
         <h1 className="text-2xl text-neutral-900 mb-4">
           {message.subject ?? "(no subject)"}
@@ -153,16 +176,26 @@ export default function MessageDetailPage() {
             </p>
             <p className="text-xs text-neutral-500">
               to{" "}
-              {message.direction === "outbound" ? (
-                <ContactDetailsTrigger
-                  mailboxId={message.mailboxId}
-                  address={message.toAddr}
-                  name={toName}
-                />
-              ) : (
+              {message.direction === "inbound" && toEntries.length <= 1 ? (
                 toName
+              ) : (
+                <RecipientList
+                  entries={toEntries}
+                  mailboxId={message.mailboxId}
+                  firstName={message.direction === "outbound" ? toName : undefined}
+                />
               )}
             </p>
+            {ccEntries.length > 0 && (
+              <p className="text-xs text-neutral-500">
+                cc <RecipientList entries={ccEntries} mailboxId={message.mailboxId} />
+              </p>
+            )}
+            {bccEntries.length > 0 && (
+              <p className="text-xs text-neutral-500">
+                bcc <RecipientList entries={bccEntries} mailboxId={message.mailboxId} />
+              </p>
+            )}
           </div>
           <p className="text-xs text-neutral-400">
             {dayjs(message.createdAt).format("MMM DD, YYYY, hh:mmA")}
@@ -230,6 +263,13 @@ export default function MessageDetailPage() {
           </section>
         )}
       </article>
+      <ConversationThread
+        currentMessageId={message.id}
+        position="after"
+        messages={thread.messages}
+        mailboxId={message.mailboxId}
+        currentAccountName={currentAccountName}
+      />
       <MessageAttachmentViewer
         attachment={previewAttachment}
         messageId={message.id}
@@ -239,5 +279,32 @@ export default function MessageDetailPage() {
         }}
       />
     </div>
+  );
+}
+
+function RecipientList({
+  entries,
+  mailboxId,
+  firstName,
+}: {
+  entries: string[];
+  mailboxId: string | null;
+  /** A contact name already resolved for the first entry, when the caller has one. */
+  firstName?: string;
+}) {
+  if (entries.length === 0) return <>—</>;
+  return (
+    <>
+      {entries.map((entry, index) => (
+        <span key={entry} title={getEmailAddress(entry)}>
+          {index > 0 && ", "}
+          <ContactDetailsTrigger
+            mailboxId={mailboxId}
+            address={entry}
+            name={index === 0 && firstName ? firstName : getEmailDisplayName(entry)}
+          />
+        </span>
+      ))}
+    </>
   );
 }

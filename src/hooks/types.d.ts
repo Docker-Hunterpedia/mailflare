@@ -12,7 +12,10 @@ export type Message = {
 	direction: MessageDirection;
 	providerMessageId: string | null;
 	fromAddr: string;
+	/** Comma-separated recipient list; may include display names. */
 	toAddr: string;
+	ccAddr?: string | null;
+	bccAddr?: string | null;
 	fromContactName?: string | null;
 	toContactName?: string | null;
 	subject: string | null;
@@ -24,7 +27,31 @@ export type Message = {
 	starred: boolean;
 	snoozedUntil?: string | null;
 	threadId: string | null;
+	inReplyTo?: string | null;
+	references?: string | null;
+	/** Messages in the same conversation (excluding drafts and trash), when the list API computed it. */
+	threadCount?: number;
 	createdAt: string;
+};
+
+export type ThreadMessage = Message & {
+	textBody: string | null;
+	htmlBody: string | null;
+	attachments: Array<{
+		contentId: string | null;
+		disposition: "attachment" | "inline";
+		filename: string;
+		id: string;
+		messageId: string;
+		size: number;
+		type: string;
+	}>;
+};
+
+export type ThreadResponse = {
+	threadId: string | null;
+	messages?: ThreadMessage[];
+	error?: string;
 };
 
 export type MessageReadFilter = "all" | "read" | "unread";

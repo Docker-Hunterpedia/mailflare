@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { contacts, routingRules } from "@/db/schema";
-import { normalizeEmailAddress } from "@/lib/email/address";
+import { getFirstEmailAddressEntry, normalizeEmailAddress } from "@/lib/email/address";
 import type { BlockContactInput, ContactInput, MessageContactNames } from "@/lib/contacts/types";
 import { getContactId, getContactNameFromAddress } from "@/lib/contacts/utils";
 
@@ -70,11 +70,13 @@ export async function getMessageContactNames(
 	fromAddr: string,
 	toAddr: string,
 ): Promise<MessageContactNames> {
-	const contactMap = await getContactDisplayNameMap(env, userId, [fromAddr, toAddr]);
+	// `toAddr` may be a full recipient list; the name shown belongs to the first one.
+	const firstTo = getFirstEmailAddressEntry(toAddr);
+	const contactMap = await getContactDisplayNameMap(env, userId, [fromAddr, firstTo]);
 
 	return {
 		fromContactName: contactMap.get(normalizeEmailAddress(fromAddr)) ?? null,
-		toContactName: contactMap.get(normalizeEmailAddress(toAddr)) ?? null,
+		toContactName: contactMap.get(normalizeEmailAddress(firstTo)) ?? null,
 	};
 }
 

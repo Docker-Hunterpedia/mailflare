@@ -108,6 +108,9 @@ function MessageListRow({
 						}`}
 					>
 						{message.subject ?? "(no subject)"}
+						{(message.threadCount ?? 1) > 1 && (
+							<span className="ml-1 text-xs font-normal text-neutral-500">({message.threadCount})</span>
+						)}
 					</span>
 					<span className="mt-0.5 block truncate text-xs leading-5 text-neutral-500">
 						{preview}
@@ -150,6 +153,9 @@ function MessageListRow({
 				<span className={unread ? "font-bold text-neutral-900" : ""}>
 					{rowMessage.subject ?? "(no subject)"}
 				</span>
+				{(message.threadCount ?? 1) > 1 && (
+					<span className="ml-1 text-xs text-neutral-500">({message.threadCount})</span>
+				)}
 				<span className="text-neutral-500"> - {getMessagePreview(rowMessage, config.folder)}</span>
 			</span>
 			<time

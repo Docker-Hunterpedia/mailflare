@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Minimize2, Paperclip, Send, X } from "lucide-react";
+import { FileText, Minimize2, Paperclip, Reply, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,9 @@ import { authFetch } from "@/lib/auth/client";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
 import { applyMailboxSignature, buildSendFormData, fetchDraft, formatAttachmentSize } from "./utils";
-import type { ComposeAttachment } from "./types";
+import { RecipientInput } from "./recipient-input";
+import { headerToRecipients, isValidRecipient, recipientsToHeader } from "./recipient-utils";
+import type { ComposeAttachment, ComposeThreading } from "./types";
 
 type Toast = { type: "success" | "error"; message: string } | null;
 
@@ -27,7 +29,12 @@ export function ComposeForm({
 }) {
 	const { selectedMailbox, setSelectedMailbox, mailboxes } = useSelectedMailbox();
 	const [draftId, setDraftId] = useState<string | null>(null);
-	const [to, setTo] = useState("");
+	const [to, setTo] = useState<string[]>([]);
+	const [cc, setCc] = useState<string[]>([]);
+	const [bcc, setBcc] = useState<string[]>([]);
+	const [showCc, setShowCc] = useState(false);
+	const [showBcc, setShowBcc] = useState(false);
+	const [threading, setThreading] = useState<ComposeThreading | null>(null);
 	const [subject, setSubject] = useState("");
 	const [text, setText] = useState("");
 	const [attachments, setAttachments] = useState<ComposeAttachment[]>([]);
@@ -88,7 +95,22 @@ export function ComposeForm({
 				if (cancelled) return;
 
 				setDraftId(draft.id);
-				setTo(draft.toAddr);
+				setTo(headerToRecipients(draft.toAddr));
+				const draftCc = headerToRecipients(draft.ccAddr);
+				const draftBcc = headerToRecipients(draft.bccAddr);
+				setCc(draftCc);
+				setBcc(draftBcc);
+				setShowCc(draftCc.length > 0);
+				setShowBcc(draftBcc.length > 0);
+				setThreading(
+					draft.inReplyTo || draft.threadId
+						? {
+								inReplyTo: draft.inReplyTo ?? null,
+								references: draft.references ?? null,
+								threadId: draft.threadId ?? null,
+							}
+						: null,
+				);
 				setSubject(draft.subject ?? "");
 				setText(draft.textBody ?? "");
 				setLoadedDraftMailboxId(draft.mailboxId);
@@ -131,7 +153,7 @@ export function ComposeForm({
 	useEffect(() => {
 		const bodyContent = text.trim();
 		const signatureOnly = bodyContent === (selectedMailbox?.signature?.trim() ?? "");
-		const hasContent = to.trim() || subject.trim() || (bodyContent && !signatureOnly);
+		const hasContent = to.length > 0 || cc.length > 0 || bcc.length > 0 || subject.trim() || (bodyContent && !signatureOnly);
 		if (!fromAddr || !hasContent || loadingDraft) return;
 		if (saveTimer.current) clearTimeout(saveTimer.current);
 
@@ -139,9 +161,14 @@ export function ComposeForm({
 			const payload = {
 				mailboxId: selectedMailbox?.id,
 				from: fromAddr,
-				to,
+				to: recipientsToHeader(to),
+				cc: recipientsToHeader(cc),
+				bcc: recipientsToHeader(bcc),
 				subject,
 				text,
+				inReplyTo: threading?.inReplyTo ?? null,
+				references: threading?.references ?? null,
+				threadId: threading?.threadId ?? null,
 			};
 			const res = await authFetch(draftId ? `/api/drafts/${draftId}` : "/api/drafts", {
 				method: draftId ? "PATCH" : "POST",
@@ -155,20 +182,32 @@ export function ComposeForm({
 		return () => {
 			if (saveTimer.current) clearTimeout(saveTimer.current);
 		};
-	}, [draftId, fromAddr, loadingDraft, selectedMailbox?.id, selectedMailbox?.signature, subject, text, to]);
+	}, [bcc, cc, draftId, fromAddr, loadingDraft, selectedMailbox?.id, selectedMailbox?.signature, subject, text, threading, to]);
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		if (to.length === 0) {
+			setToast({ type: "error", message: "Add at least one recipient" });
+			return;
+		}
+		const invalid = [...to, ...cc, ...bcc].find((entry) => !isValidRecipient(entry));
+		if (invalid) {
+			setToast({ type: "error", message: `"${invalid}" is not a valid email address` });
+			return;
+		}
 		setLoading(true);
 		const res = await authFetch("/api/send", {
 			method: "POST",
 			body: buildSendFormData({
 				attachments,
 				from: fromAddr,
-				to,
+				to: recipientsToHeader(to),
+				cc: recipientsToHeader(cc),
+				bcc: recipientsToHeader(bcc),
 				subject,
 				text,
 				mailboxId: selectedMailbox?.id,
+				threading: threading ?? undefined,
 			}),
 		});
 		const data = (await res.json()) as { messageId?: string; error?: string };
@@ -185,7 +224,12 @@ export function ComposeForm({
 			});
 		}
 		setDraftId(null);
-		setTo("");
+		setTo([]);
+		setCc([]);
+		setBcc([]);
+		setShowCc(false);
+		setShowBcc(false);
+		setThreading(null);
 		setSubject("");
 		setText(applyMailboxSignature("", "", selectedMailbox?.signature));
 		setAttachments([]);
@@ -248,7 +292,10 @@ export function ComposeForm({
 			)}
 			<form onSubmit={onSubmit} className={frameClass}>
 				<div className="flex h-9 items-center justify-between bg-neutral-800 px-4 text-sm font-medium text-white">
-					<span>{loadingDraft ? "Loading draft" : draftId ? "Draft saved" : "New Message"}</span>
+					<span className="flex items-center gap-2">
+						{threading?.inReplyTo && <Reply className="h-3.5 w-3.5 text-neutral-300" />}
+						{loadingDraft ? "Loading draft" : threading?.inReplyTo ? "Reply" : draftId ? "Draft saved" : "New Message"}
+					</span>
 					{mode === "popup" && (
 						<div className="flex items-center gap-3 text-neutral-300">
 							<Minimize2 className="h-4 w-4" />
@@ -275,19 +322,51 @@ export function ComposeForm({
 						))}
 					</Select>
 				</div>
-				<div className="border-b border-neutral-100 px-4 py-1">
-					<Label htmlFor={`${mode}-to`} className="sr-only">To</Label>
-					<Input
-						id={`${mode}-to`}
-						value={to}
-						onChange={(event) => setTo(event.target.value)}
-						type="text"
-						placeholder='Recipients, or "Maya Chen" <maya@example.com>'
-						required
+				<RecipientInput
+					id={`${mode}-to`}
+					label="To"
+					value={to}
+					onChange={setTo}
+					placeholder='Recipients, or "Maya Chen" <maya@example.com>'
+					required
+					disabled={loadingDraft}
+					trailing={
+						<>
+							{!showCc && (
+								<button type="button" className="rounded px-1 hover:text-neutral-800" onClick={() => setShowCc(true)}>
+									Cc
+								</button>
+							)}
+							{!showBcc && (
+								<button type="button" className="rounded px-1 hover:text-neutral-800" onClick={() => setShowBcc(true)}>
+									Bcc
+								</button>
+							)}
+						</>
+					}
+				/>
+				{showCc && (
+					<RecipientInput
+						id={`${mode}-cc`}
+						label="Cc"
+						value={cc}
+						onChange={setCc}
+						placeholder="Carbon copy"
 						disabled={loadingDraft}
-						className="h-8 border-0 px-0 py-1 shadow-none focus-visible:ring-0"
+						autoFocus={!loadingDraft && cc.length === 0}
 					/>
-				</div>
+				)}
+				{showBcc && (
+					<RecipientInput
+						id={`${mode}-bcc`}
+						label="Bcc"
+						value={bcc}
+						onChange={setBcc}
+						placeholder="Blind carbon copy, hidden from other recipients"
+						disabled={loadingDraft}
+						autoFocus={!loadingDraft && bcc.length === 0}
+					/>
+				)}
 				<div className="border-b border-neutral-100 px-4 py-1">
 					<Label htmlFor={`${mode}-subject`} className="sr-only">Subject</Label>
 					<Input

@@ -55,6 +55,8 @@ export async function PATCH(request: Request, { params }: DraftRouteParams) {
 			mailboxId: sender.mailboxId,
 			fromAddr: sender.fromAddr,
 			toAddr: input.to ?? "",
+			ccAddr: input.cc || null,
+			bccAddr: input.bcc || null,
 			subject: input.subject ?? null,
 			snippet: buildSnippet(text || null, html || null),
 			textBody: text || null,

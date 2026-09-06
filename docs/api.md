@@ -18,12 +18,14 @@ The hostname must be the apex of a zone available to the configured Cloudflare c
 
 ## Sending email
 
-Send email through `POST /api/v1/send`. Attachments are optional and use Base64-encoded content:
+Send email through `POST /api/v1/send`. `to`, `cc` and `bcc` accept either a comma-separated header string or an array of addresses; each entry may carry a display name (`"Maya Chen" <maya@example.net>`). A message can reach up to 50 recipients across the three fields. Attachments are optional and use Base64-encoded content:
 
 ```json
 {
   "from": "support@example.com",
-  "to": "user@example.net",
+  "to": ["user@example.net", "\"Maya Chen\" <maya@example.net>"],
+  "cc": "ops@example.com",
+  "bcc": ["audit@example.com"],
   "subject": "Report",
   "text": "Attached.",
   "attachments": [
@@ -35,6 +37,21 @@ Send email through `POST /api/v1/send`. Attachments are optional and use Base64-
   ]
 }
 ```
+
+To send a reply that threads correctly in the recipient's client, pass the parent's Message-ID as `inReplyTo` and its chain as `references` (a header string or an array). Mailflare writes the `In-Reply-To` and `References` headers, files the sent copy in the same conversation, and stores `threadId`, `inReplyTo` and `references` on every message.
+
+```json
+{
+  "from": "support@example.com",
+  "to": "user@example.net",
+  "subject": "Re: Report",
+  "text": "Thanks, received.",
+  "inReplyTo": "<CAF1abc@mail.example.net>",
+  "references": ["<CAF0root@mail.example.net>", "<CAF1abc@mail.example.net>"]
+}
+```
+
+`GET /api/messages/{id}/thread` (session auth) returns every stored message in the same conversation, oldest first, excluding drafts and trash.
 
 The dashboard composer accepts up to 10 attachments, with a 10 MB limit per file and a 20 MB combined limit. Attachment metadata is stored in D1 and file content is stored in R2. Downloads require access to the mailbox containing the message.
 

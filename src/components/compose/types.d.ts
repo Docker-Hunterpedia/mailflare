@@ -3,9 +3,21 @@ export type ComposeDraft = {
 	mailboxId: string | null;
 	fromAddr: string;
 	toAddr: string;
+	ccAddr?: string | null;
+	bccAddr?: string | null;
 	subject: string | null;
 	textBody: string | null;
 	htmlBody: string | null;
+	inReplyTo?: string | null;
+	references?: string | null;
+	threadId?: string | null;
+};
+
+/** Headers a reply draft carries so the sent message joins its conversation. */
+export type ComposeThreading = {
+	inReplyTo: string | null;
+	references: string | null;
+	threadId: string | null;
 };
 
 export type DraftResponse = {

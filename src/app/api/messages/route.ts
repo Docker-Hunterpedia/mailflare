@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { eq, desc, and, like, or, count, isNull, inArray, lte, gt } from "drizzle-orm";
+import { eq, desc, and, like, or, count, isNull, isNotNull, inArray, lte, gt, notInArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { getEnv } from "@/lib/cloudflare";
 import { getCurrentUser } from "@/lib/auth/cookies";
 import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { getContactDisplayNameMap } from "@/lib/contacts/service";
-import { normalizeEmailAddress } from "@/lib/email/address";
+import { getFirstEmailAddressEntry, normalizeEmailAddress } from "@/lib/email/address";
 import { buildSnippet } from "@/lib/email/parse";
 import { getMailboxAccessLevel, listAccessibleMailboxes } from "@/lib/mailboxes/access";
 
@@ -98,6 +98,25 @@ export async function GET(request: Request) {
 		.orderBy(desc(messages.createdAt))
 		.limit(limit)
 		.offset(offset);
+	// Conversation sizes for the rows on this page, so the list can show "(3)"
+	// next to a subject the way threaded clients do.
+	const threadIds = Array.from(new Set(rows.map((row) => row.threadId).filter((id): id is string => !!id)));
+	const threadCounts = new Map<string, number>();
+	if (threadIds.length > 0) {
+		const scope = mailboxId
+			? eq(messages.mailboxId, mailboxId)
+			: accessibleMailboxIds.length > 0
+				? inArray(messages.mailboxId, accessibleMailboxIds)
+				: eq(messages.userId, user.id);
+		const countRows = await db
+			.select({ threadId: messages.threadId, total: count() })
+			.from(messages)
+			.where(and(scope, inArray(messages.threadId, threadIds), isNotNull(messages.threadId), notInArray(messages.status, ["draft", "trash"])))
+			.groupBy(messages.threadId);
+		for (const row of countRows) {
+			if (row.threadId) threadCounts.set(row.threadId, row.total);
+		}
+	}
 	const mailboxNameMap = new Map(
 		accessibleMailboxes.map((mailbox) => [
 			mailbox.id,
@@ -113,7 +132,7 @@ export async function GET(request: Request) {
 					userId,
 					rows
 						.filter((message) => message.userId === userId)
-						.flatMap((message) => [message.fromAddr, message.toAddr]),
+						.flatMap((message) => [message.fromAddr, getFirstEmailAddressEntry(message.toAddr)]),
 				),
 			] as const),
 		),
@@ -128,7 +147,8 @@ export async function GET(request: Request) {
 				(message.direction === "outbound" ? accountName : null) ??
 				contactMap?.get(normalizeEmailAddress(message.fromAddr)) ??
 				null,
-			toContactName: contactMap?.get(normalizeEmailAddress(message.toAddr)) ?? null,
+			toContactName: contactMap?.get(normalizeEmailAddress(getFirstEmailAddressEntry(message.toAddr))) ?? null,
+			threadCount: message.threadId ? threadCounts.get(message.threadId) ?? 1 : 1,
 		};
 	});
 

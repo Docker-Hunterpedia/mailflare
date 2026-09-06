@@ -1,6 +1,6 @@
 import { authFetch } from "@/lib/auth/client";
 import { fetchCachedMessageDetail, getCachedMessageDetail } from "@/lib/messages/detail-cache";
-import { getEmailAddress } from "@/lib/email/address";
+import { getEmailAddress, getEmailAddressList, normalizeEmailAddress } from "@/lib/email/address";
 import { getDisplayNameForAddress } from "@/lib/contacts/utils";
 import { htmlToReadableText, splitRepliedEmailContent } from "@/lib/email/reply-content-utils";
 import type { Message } from "@/hooks/types";
@@ -30,6 +30,18 @@ export function getMessageHeaderParties(message: Message, currentAccountName?: s
 				? "me"
 				: getDisplayNameForAddress(message.toAddr, message.toContactName),
 	};
+}
+
+/**
+ * The mailbox address this message reached, used as the reply sender and to
+ * tell "sent" from "received" in quoted history. With several recipients the
+ * mailbox's own address is whichever of them it can send as.
+ */
+export function getOwnAddressForMessage(message: Message, ownAddresses: string[]): string {
+	if (message.direction === "outbound") return getEmailAddress(message.fromAddr);
+	const own = new Set(ownAddresses.map((address) => normalizeEmailAddress(address)));
+	const listed = [...getEmailAddressList(message.toAddr), ...getEmailAddressList(message.ccAddr)];
+	return listed.find((address) => own.has(address)) ?? ownAddresses[0] ?? getEmailAddress(message.toAddr);
 }
 
 export function getMessageBodyDisplay(

@@ -1,0 +1,23 @@
+import type { ThreadMessage } from "@/hooks/types";
+
+export type ConversationThreadProps = {
+	/** The message the reader is currently viewing; it is rendered by the page, not here. */
+	currentMessageId: string;
+	/** Which side of the current message to render. */
+	position: "before" | "after";
+	messages: ThreadMessage[];
+	mailboxId: string | null;
+	currentAccountName?: string;
+};
+
+export type ConversationMessageCardProps = {
+	message: ThreadMessage;
+	mailboxId: string | null;
+	currentAccountName?: string;
+	defaultExpanded?: boolean;
+};
+
+export type UseMessageThreadResult = {
+	messages: ThreadMessage[];
+	loading: boolean;
+};

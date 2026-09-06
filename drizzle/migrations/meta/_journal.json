@@ -176,6 +176,13 @@
       "when": 1788604800001,
       "tag": "0024_add_advanced_routing_and_webhook_retries",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1788691200000,
+      "tag": "0025_add_threading_and_cc_bcc",
+      "breakpoints": true
     }
   ]
 }

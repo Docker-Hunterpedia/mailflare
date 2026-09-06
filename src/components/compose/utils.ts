@@ -1,5 +1,5 @@
 import { authFetch } from "@/lib/auth/client";
-import type { ComposeAttachment, ComposeDraft, DraftResponse } from "./types";
+import type { ComposeAttachment, ComposeDraft, ComposeThreading, DraftResponse } from "./types";
 
 export async function fetchDraft(draftId: string): Promise<ComposeDraft> {
 	const res = await authFetch(`/api/drafts/${draftId}`);
@@ -19,13 +19,21 @@ export function buildSendFormData(input: {
 	subject: string;
 	text: string;
 	to: string;
+	cc?: string;
+	bcc?: string;
+	threading?: ComposeThreading;
 }): FormData {
 	const form = new FormData();
 	form.set("from", input.from);
 	form.set("to", input.to);
+	if (input.cc) form.set("cc", input.cc);
+	if (input.bcc) form.set("bcc", input.bcc);
 	form.set("subject", input.subject);
 	form.set("text", input.text);
 	if (input.mailboxId) form.set("mailboxId", input.mailboxId);
+	if (input.threading?.inReplyTo) form.set("inReplyTo", input.threading.inReplyTo);
+	if (input.threading?.references) form.set("references", input.threading.references);
+	if (input.threading?.threadId) form.set("threadId", input.threading.threadId);
 	for (const attachment of input.attachments) {
 		form.append("attachments", attachment.file);
 	}

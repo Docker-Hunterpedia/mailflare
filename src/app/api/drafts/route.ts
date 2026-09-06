@@ -60,12 +60,17 @@ export async function POST(request: Request) {
 		direction: "outbound",
 		fromAddr: sender.fromAddr,
 		toAddr: input.to ?? "",
+		ccAddr: input.cc || null,
+		bccAddr: input.bcc || null,
 		subject: input.subject ?? null,
 		snippet: buildSnippet(text || null, html || null),
 		textBody: text || null,
 		htmlBody: html || null,
 		status: "draft",
 		read: true,
+		inReplyTo: input.inReplyTo || null,
+		references: input.references || null,
+		threadId: input.threadId || null,
 	});
 
 	return NextResponse.json({ draft: { id: draftId } });

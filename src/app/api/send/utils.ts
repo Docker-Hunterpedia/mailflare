@@ -29,6 +29,11 @@ export async function parseSendRequest(request: Request): Promise<SendRequestPay
 	return {
 		from: String(form.get("from") ?? ""),
 		to: String(form.get("to") ?? ""),
+		cc: getOptionalFormValue(form, "cc"),
+		bcc: getOptionalFormValue(form, "bcc"),
+		inReplyTo: getOptionalFormValue(form, "inReplyTo"),
+		references: getOptionalFormValue(form, "references"),
+		threadId: getOptionalFormValue(form, "threadId"),
 		subject: String(form.get("subject") ?? ""),
 		text: getOptionalFormValue(form, "text"),
 		html: getOptionalFormValue(form, "html"),

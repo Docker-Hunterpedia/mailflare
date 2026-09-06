@@ -1,10 +1,31 @@
 import { z } from "zod";
+import { getEmailAddress, splitEmailAddressList } from "@/lib/email/address";
 import { DEFAULT_FOLDER_COLOR, FOLDER_COLOR_VALUES } from "@/lib/folders/colors";
+
+/**
+ * Recipients arrive either as one comma-separated header string (the composer)
+ * or as an array (the public API). Both normalise to a trimmed list of entries
+ * that still carry their display names.
+ */
+const recipientListSchema = z
+	.union([z.string().max(5000), z.array(z.string().trim().min(3).max(500)).max(50)])
+	.transform((value) => (Array.isArray(value) ? value : splitEmailAddressList(value)))
+	.refine((list) => list.length <= 50, "A message can have at most 50 recipients per field")
+	.refine((list) => list.every((entry) => getEmailAddress(entry).includes("@")), "Enter valid email addresses");
+
+const messageIdListSchema = z
+	.union([z.string().max(5000), z.array(z.string().max(998)).max(50)])
+	.transform((value) => (Array.isArray(value) ? value.join(" ") : value));
 
 export const sendEmailSchema = z.object({
 	from: z.string().min(3).max(500),
-	to: z.string().min(3).max(500),
+	to: recipientListSchema.refine((list) => list.length > 0, "At least one recipient is required"),
+	cc: recipientListSchema.optional(),
+	bcc: recipientListSchema.optional(),
 	subject: z.string().min(1).max(500),
+	inReplyTo: z.string().max(998).optional(),
+	references: messageIdListSchema.optional(),
+	threadId: z.string().max(998).optional(),
 	html: z.string().max(2 * 1024 * 1024).optional(),
 	text: z.string().max(2 * 1024 * 1024).optional(),
 	mailboxId: z.string().min(1).max(200),

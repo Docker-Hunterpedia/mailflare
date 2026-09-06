@@ -1,11 +1,14 @@
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import { authFetch } from "@/lib/auth/client";
-import { getEmailAddress } from "@/lib/email/address";
+import { getEmailAddress, normalizeEmailAddress, splitEmailAddressList } from "@/lib/email/address";
 import { getLatestEmailContent } from "@/lib/email/reply-content-utils";
 import type {
   BlockMessageContactInput,
   MoveMessageActionItem,
+  ReplyableMessage,
   ReplyDraftInput,
+  ReplyMode,
+  ReplyRecipients,
   TrashSenderRuleInput,
 } from "./types";
 import {
@@ -140,15 +143,71 @@ export function buildReplyQuote(
   return `\n\n${getEmailAddress(senderAddress)} wrote:\n${quoted}\n`;
 }
 
+/**
+ * Who a reply goes to. A plain reply answers the sender; reply-all also keeps
+ * everyone else on the To and Cc lines, minus the mailbox's own addresses so
+ * the author is not mailing themselves. Replying to a sent message re-addresses
+ * its original recipients.
+ */
+export function getReplyRecipients(
+  message: ReplyableMessage,
+  ownAddresses: string[],
+  mode: ReplyMode,
+): ReplyRecipients {
+  const own = new Set(ownAddresses.map((address) => normalizeEmailAddress(address)));
+  const seen = new Set<string>();
+  const unique = (entries: string[]) =>
+    entries.filter((entry) => {
+      const key = normalizeEmailAddress(entry);
+      if (!key || own.has(key) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  if (message.direction === "outbound") {
+    const to = unique(splitEmailAddressList(message.toAddr));
+    const cc = mode === "replyAll" ? unique(splitEmailAddressList(message.ccAddr)) : [];
+    return { to, cc };
+  }
+
+  const to = unique([message.fromAddr]);
+  if (mode !== "replyAll") return { to, cc: [] };
+  const cc = unique([...splitEmailAddressList(message.toAddr), ...splitEmailAddressList(message.ccAddr)]);
+  return { to, cc };
+}
+
+/** Reply-all is only worth offering when it would reach someone a plain reply would not. */
+export function hasAdditionalRecipients(message: ReplyableMessage, ownAddresses: string[]): boolean {
+  const all = getReplyRecipients(message, ownAddresses, "replyAll");
+  const single = getReplyRecipients(message, ownAddresses, "reply");
+  return all.to.length + all.cc.length > single.to.length + single.cc.length;
+}
+
+/** The threading headers a reply must carry so both sides file it in the same conversation. */
+export function getReplyThreading(message: ReplyableMessage) {
+  const parentId = (message.providerMessageId ?? "").trim().replace(/^<|>$/g, "") || null;
+  const chain = (message.references ?? "")
+    .split(/\s+/)
+    .map((id) => id.replace(/^<|>$/g, ""))
+    .filter(Boolean);
+  if (parentId && !chain.includes(parentId)) chain.push(parentId);
+  return {
+    inReplyTo: parentId,
+    references: chain.length ? chain.join(" ") : null,
+    threadId: message.threadId ?? parentId,
+  };
+}
+
 export async function createReplyDraft({
   mailboxId,
   senderAddress,
   ownAddress,
   subject,
   bodyText,
+  recipients,
+  threading,
 }: ReplyDraftInput) {
-  const to = getEmailAddress(senderAddress).trim();
-  if (!to) throw new Error("Sender address is required");
+  if (recipients.to.length === 0) throw new Error("Sender address is required");
 
   const response = await authFetch("/api/drafts", {
     method: "POST",
@@ -157,9 +216,11 @@ export async function createReplyDraft({
       mailboxId,
       // The API rejects the draft unless `from` matches the mailbox address.
       from: getEmailAddress(ownAddress ?? ""),
-      to,
+      to: recipients.to.join(", "),
+      cc: recipients.cc.join(", "),
       subject: buildReplySubject(subject),
       text: buildReplyQuote(senderAddress, bodyText),
+      ...threading,
     }),
   });
   const data = (await response.json()) as {

@@ -17,9 +17,20 @@ export type MessageActionsProps = {
 	ownAddresses?: string[];
 	/** Recipient and threading headers of the message being acted on. */
 	message?: ReplyableMessage;
+	/** Needed by Forward, which quotes the original header block. */
+	messageMeta?: Pick<Message, "id" | "subject" | "createdAt">;
+	bodyHtml?: string | null;
 };
 
-export type SingleMessageAction = BulkMessageAction | "reply" | "replyAll";
+export type ForwardDraftInput = {
+	mailboxId: string | null;
+	ownAddress?: string | null;
+	message: ReplyableMessage & Pick<Message, "id" | "subject" | "createdAt">;
+	bodyText?: string | null;
+	bodyHtml?: string | null;
+};
+
+export type SingleMessageAction = BulkMessageAction | "reply" | "replyAll" | "forward";
 
 export type ReplyMode = "reply" | "replyAll";
 
@@ -39,6 +50,8 @@ export type ReplyDraftInput = {
 	ownAddress?: string | null;
 	subject?: string | null;
 	bodyText?: string | null;
+	bodyHtml?: string | null;
+	sentAt?: string | null;
 	recipients: ReplyRecipients;
 	threading?: {
 		inReplyTo: string | null;

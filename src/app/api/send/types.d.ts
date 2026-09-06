@@ -13,4 +13,6 @@ export interface SendRequestPayload {
 	inReplyTo?: string;
 	references?: string;
 	threadId?: string;
+	/** Draft whose stored attachments (e.g. forwarded files) should be sent along. */
+	draftId?: string;
 }

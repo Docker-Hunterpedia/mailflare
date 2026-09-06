@@ -3,6 +3,7 @@ import { fetchCachedMessageDetail, getCachedMessageDetail } from "@/lib/messages
 import { getEmailAddress, getEmailAddressList, normalizeEmailAddress } from "@/lib/email/address";
 import { getDisplayNameForAddress } from "@/lib/contacts/utils";
 import { htmlToReadableText, splitRepliedEmailContent } from "@/lib/email/reply-content-utils";
+import { splitQuotedHtml } from "@/components/compose/rich-text-utils";
 import type { Message } from "@/hooks/types";
 import type { MessageAttachment, MessageBodyDisplay, MessageDetailResponse } from "./types";
 
@@ -50,12 +51,28 @@ export function getMessageBodyDisplay(
 	fallback: string | null | undefined,
 	ownAddress?: string,
 ): MessageBodyDisplay {
+	// A message composed in Mailflare marks its quoted part, so the rich body can
+	// stay rich and the quote fold on its own. Other mail falls back to the
+	// text heuristics, which can only render the result as text.
+	const marked = splitQuotedHtml(htmlBody);
+	if (marked.quoted !== null) {
+		const parts = splitRepliedEmailContent(htmlToReadableText(marked.body), { ownAddress });
+		return {
+			latestContent: parts.latestContent,
+			quotedContent: [],
+			htmlBody: marked.body,
+			quotedHtml: marked.quoted,
+			hasQuotedContent: true,
+		};
+	}
+
 	const textSource = textBody ?? (htmlToReadableText(htmlBody) || fallback || "");
 	const parts = splitRepliedEmailContent(textSource, { ownAddress });
 
 	return {
 		...parts,
 		htmlBody: parts.quotedContent.length > 0 ? null : htmlBody ?? null,
+		quotedHtml: null,
 		hasQuotedContent: parts.quotedContent.length > 0,
 	};
 }

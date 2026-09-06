@@ -2,7 +2,7 @@
 
 import { createElement, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, Ban, BellOff, Mail, MailOpen, MoreVertical, Reply, ReplyAll, ShieldAlert, Trash2 } from "lucide-react";
+import { Archive, Ban, BellOff, Forward, Mail, MailOpen, MoreVertical, Reply, ReplyAll, ShieldAlert, Trash2 } from "lucide-react";
 import { useCompose } from "@/components/compose/compose-context";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -11,6 +11,7 @@ import type { MessageActionsProps, ReplyMode } from "./types";
 import {
 	confirmTrashWithoutUnsubscribe,
 	blockMessageContact,
+	createForwardDraft,
 	createReplyDraft,
 	createTrashSenderRule,
 	getMessageActionRedirect,
@@ -35,11 +36,13 @@ export function MessageActions({
 	ownAddress,
 	ownAddresses = [],
 	message,
+	messageMeta,
+	bodyHtml,
 }: MessageActionsProps) {
 	const router = useRouter();
 	const { openDraftComposer } = useCompose();
 	const [pendingAction, setPendingAction] = useState<
-		BulkMessageAction | "unsubscribe" | ReplyMode | "block" | null
+		BulkMessageAction | "unsubscribe" | ReplyMode | "forward" | "block" | null
 	>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [moreOpen, setMoreOpen] = useState(false);
@@ -106,12 +109,34 @@ export function MessageActions({
 				ownAddress,
 				subject,
 				bodyText,
+				bodyHtml,
+				sentAt: messageMeta?.createdAt,
 				recipients: getReplyRecipients(replyable, ownAddresses, mode),
 				threading: getReplyThreading(replyable),
 			});
 			openDraftComposer(draftId);
 		} catch (replyError) {
 			setError(replyError instanceof Error ? replyError.message : "Could not start reply");
+		} finally {
+			setPendingAction(null);
+		}
+	}
+
+	async function handleForward() {
+		if (!message || !messageMeta) return;
+		setPendingAction("forward");
+		setError(null);
+		try {
+			const draftId = await createForwardDraft({
+				mailboxId,
+				ownAddress,
+				message: { ...message, ...messageMeta },
+				bodyText,
+				bodyHtml,
+			});
+			openDraftComposer(draftId);
+		} catch (forwardError) {
+			setError(forwardError instanceof Error ? forwardError.message : "Could not start forward");
 		} finally {
 			setPendingAction(null);
 		}
@@ -169,6 +194,20 @@ export function MessageActions({
 							onClick={() => handleReply("replyAll")}
 						>
 							<ReplyAll className="h-5 w-5" />
+						</Button>
+					</Tooltip>
+				)}
+				{message && messageMeta && (
+					<Tooltip label="Forward">
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							aria-label="Forward"
+							disabled={disabled}
+							onClick={() => void handleForward()}
+						>
+							<Forward className="h-5 w-5" />
 						</Button>
 					</Tooltip>
 				)}

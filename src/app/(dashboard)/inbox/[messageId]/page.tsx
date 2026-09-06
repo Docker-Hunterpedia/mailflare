@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Cloud, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronRight, Cloud, ExternalLink } from "lucide-react";
 import dayjs from "dayjs";
 import { MarkAsRead } from "@/components/mark-read";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
@@ -112,6 +112,9 @@ export default function MessageDetailPage() {
   const htmlBody = sanitizeEmailHtml(
     resolveInlineAttachmentUrls(bodyDisplay.htmlBody, message.id, attachments),
   );
+  const quotedHtml = sanitizeEmailHtml(
+    resolveInlineAttachmentUrls(bodyDisplay.quotedHtml, message.id, attachments),
+  );
   const cloudAttachmentResult = extractCloudAttachments(
     bodyDisplay.latestContent,
   );
@@ -144,6 +147,8 @@ export default function MessageDetailPage() {
           ownAddress={ownAddress}
           ownAddresses={ownAddresses}
           message={message}
+          messageMeta={message}
+          bodyHtml={body?.htmlBody}
         />
       </div>
       <ConversationThread
@@ -203,11 +208,23 @@ export default function MessageDetailPage() {
         </div>
         <div className="prose max-w-none text-neutral-900">
           {htmlBody ? (
-            <div className="mx-auto" dangerouslySetInnerHTML={{ __html: htmlBody }} />
+            <div className="email-body mx-auto" dangerouslySetInnerHTML={{ __html: htmlBody }} />
           ) : (
             <pre className="whitespace-pre-wrap text-sm text mx-auto">
               {cloudAttachmentResult.content}
             </pre>
+          )}
+          {quotedHtml && (
+            <details className="group mt-4 border-l-2 border-neutral-200 pl-4">
+              <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md py-2 text-xs font-medium text-neutral-500 hover:text-neutral-800">
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-90" />
+                <span>Quoted text</span>
+              </summary>
+              <div
+                className="email-body max-w-none pb-2 text-sm text-neutral-600"
+                dangerouslySetInnerHTML={{ __html: quotedHtml }}
+              />
+            </details>
           )}
           {bodyDisplay.quotedContent.map((quotedContent) => (
             <PreviousMessage

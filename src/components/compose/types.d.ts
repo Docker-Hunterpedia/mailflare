@@ -11,6 +11,16 @@ export type ComposeDraft = {
 	inReplyTo?: string | null;
 	references?: string | null;
 	threadId?: string | null;
+	/** Files already stored on the draft, e.g. carried over by Forward. */
+	attachments?: ComposeStoredAttachment[];
+};
+
+export type ComposeStoredAttachment = {
+	id: string;
+	filename: string;
+	size: number;
+	type: string;
+	disposition: "attachment" | "inline";
 };
 
 /** Headers a reply draft carries so the sent message joins its conversation. */

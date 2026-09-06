@@ -2,8 +2,12 @@ import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
 import { authFetch } from "@/lib/auth/client";
 import { getEmailAddress, normalizeEmailAddress, splitEmailAddressList } from "@/lib/email/address";
 import { getLatestEmailContent } from "@/lib/email/reply-content-utils";
+import dayjs from "dayjs";
+import { sanitizeEmailHtml } from "@/app/(dashboard)/inbox/[messageId]/email-html-sanitizer";
+import { escapeHtml, htmlToPlainText, textToHtml, wrapQuotedHtml } from "@/components/compose/rich-text-utils";
 import type {
   BlockMessageContactInput,
+  ForwardDraftInput,
   MoveMessageActionItem,
   ReplyableMessage,
   ReplyDraftInput,
@@ -143,6 +147,26 @@ export function buildReplyQuote(
   return `\n\n${getEmailAddress(senderAddress)} wrote:\n${quoted}\n`;
 }
 
+const QUOTE_STYLE = "margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex";
+
+/**
+ * The folded quote under a reply: the "On <date>, <sender> wrote:" line every
+ * client recognises, then the original as HTML (sanitised) or as text.
+ */
+export function buildReplyQuoteHtml(
+  senderAddress: string,
+  sentAt: string | null | undefined,
+  bodyText: string | null | undefined,
+  bodyHtml: string | null | undefined,
+) {
+  const original = bodyHtml ? sanitizeEmailHtml(bodyHtml) : textToHtml(bodyText);
+  if (!original) return null;
+  const when = sentAt ? dayjs(sentAt).format("ddd, MMM D, YYYY [at] h:mm A") : "an earlier date";
+  return wrapQuotedHtml(
+    `<div>On ${escapeHtml(when)}, ${escapeHtml(senderAddress)} wrote:</div><blockquote style="${QUOTE_STYLE}">${original}</blockquote>`,
+  );
+}
+
 /**
  * Who a reply goes to. A plain reply answers the sender; reply-all also keeps
  * everyone else on the To and Cc lines, minus the mailbox's own addresses so
@@ -198,16 +222,69 @@ export function getReplyThreading(message: ReplyableMessage) {
   };
 }
 
+export function buildForwardSubject(subject: string | null | undefined) {
+  const trimmed = (subject ?? "").trim();
+  if (!trimmed) return "Fwd:";
+  return /^fwd?:/i.test(trimmed) ? trimmed : `Fwd: ${trimmed}`;
+}
+
+/** The header block mail clients put above a forwarded message, as folded HTML. */
+export function buildForwardHtml(
+  message: ForwardDraftInput["message"],
+  bodyText: string | null | undefined,
+  bodyHtml: string | null | undefined,
+) {
+  const lines = [
+    `From: ${message.fromAddr}`,
+    `Date: ${dayjs(message.createdAt).format("ddd, MMM D, YYYY [at] h:mm A")}`,
+    `Subject: ${message.subject ?? "(no subject)"}`,
+    `To: ${message.toAddr}`,
+  ];
+  if (message.ccAddr) lines.push(`Cc: ${message.ccAddr}`);
+  const header = `<div>---------- Forwarded message ---------<br>${lines.map(escapeHtml).join("<br>")}</div><br>`;
+  const original = bodyHtml ? sanitizeEmailHtml(bodyHtml) : textToHtml(bodyText);
+  return wrapQuotedHtml(`${header}${original ?? ""}`);
+}
+
+/**
+ * A forward keeps the original's attachments (copied onto the draft server-side)
+ * and references its Message-ID so recipients who already have it see the link.
+ */
+export async function createForwardDraft({ mailboxId, ownAddress, message, bodyText, bodyHtml }: ForwardDraftInput) {
+  const html = buildForwardHtml(message, bodyText, bodyHtml);
+  const response = await authFetch("/api/drafts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mailboxId,
+      from: getEmailAddress(ownAddress ?? ""),
+      to: "",
+      subject: buildForwardSubject(message.subject),
+      html,
+      text: htmlToPlainText(html),
+      references: getReplyThreading(message).references,
+      threadId: message.threadId,
+      forwardOfMessageId: message.id,
+    }),
+  });
+  const data = (await response.json()) as { draft?: { id: string }; error?: string };
+  if (!response.ok || !data.draft) throw new Error(data.error ?? "Unable to start forward");
+  return data.draft.id;
+}
+
 export async function createReplyDraft({
   mailboxId,
   senderAddress,
   ownAddress,
   subject,
   bodyText,
+  bodyHtml,
+  sentAt,
   recipients,
   threading,
 }: ReplyDraftInput) {
   if (recipients.to.length === 0) throw new Error("Sender address is required");
+  const html = buildReplyQuoteHtml(senderAddress, sentAt, bodyText, bodyHtml) ?? "";
 
   const response = await authFetch("/api/drafts", {
     method: "POST",
@@ -219,7 +296,8 @@ export async function createReplyDraft({
       to: recipients.to.join(", "),
       cc: recipients.cc.join(", "),
       subject: buildReplySubject(subject),
-      text: buildReplyQuote(senderAddress, bodyText),
+      html,
+      text: htmlToPlainText(html),
       ...threading,
     }),
   });

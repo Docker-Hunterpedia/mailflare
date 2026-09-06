@@ -31,6 +31,10 @@ export type Message = {
 	references?: string | null;
 	/** Messages in the same conversation (excluding drafts and trash), when the list API computed it. */
 	threadCount?: number;
+	/** Unread inbound messages in the conversation. */
+	threadUnread?: number;
+	/** In conversation view: every message this row stands for within the current folder. */
+	threadMessageIds?: string[];
 	createdAt: string;
 };
 
@@ -62,6 +66,8 @@ export type MessageFilterOptions = {
 	title?: string;
 	limit?: number;
 	offset?: number;
+	/** "thread" collapses each conversation to its newest matching message. */
+	group?: "thread";
 };
 
 export type MessageListResponse = {

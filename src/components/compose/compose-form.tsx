@@ -1,20 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Minimize2, Paperclip, Reply, Send, X } from "lucide-react";
+import { FileText, Forward, Minimize2, Paperclip, Reply, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { authFetch } from "@/lib/auth/client";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { cn } from "@/lib/utils";
-import { applyMailboxSignature, buildSendFormData, fetchDraft, formatAttachmentSize } from "./utils";
+import { buildSendFormData, fetchDraft, formatAttachmentSize } from "./utils";
 import { RecipientInput } from "./recipient-input";
+import { RichTextEditor } from "./rich-text-editor";
+import {
+	applyMailboxSignatureHtml,
+	hasMeaningfulHtml,
+	htmlToPlainText,
+	joinQuotedHtml,
+	splitQuotedHtml,
+	textToHtml,
+} from "./rich-text-utils";
 import { headerToRecipients, isValidRecipient, recipientsToHeader } from "./recipient-utils";
-import type { ComposeAttachment, ComposeThreading } from "./types";
+import type { ComposeAttachment, ComposeStoredAttachment, ComposeThreading } from "./types";
 
 type Toast = { type: "success" | "error"; message: string } | null;
 
@@ -36,8 +44,12 @@ export function ComposeForm({
 	const [showBcc, setShowBcc] = useState(false);
 	const [threading, setThreading] = useState<ComposeThreading | null>(null);
 	const [subject, setSubject] = useState("");
-	const [text, setText] = useState("");
+	// The body is HTML; quoted/forwarded content is kept aside and folded.
+	const [html, setHtml] = useState("");
+	const [quotedHtml, setQuotedHtml] = useState<string | null>(null);
 	const [attachments, setAttachments] = useState<ComposeAttachment[]>([]);
+	// Attachments the draft already holds server-side (a forwarded message's files).
+	const [storedAttachments, setStoredAttachments] = useState<ComposeStoredAttachment[]>([]);
 	const [toast, setToast] = useState<Toast>(null);
 	const [loading, setLoading] = useState(false);
 	const [loadingDraft, setLoadingDraft] = useState(false);
@@ -112,7 +124,10 @@ export function ComposeForm({
 						: null,
 				);
 				setSubject(draft.subject ?? "");
-				setText(draft.textBody ?? "");
+				const stored = splitQuotedHtml(draft.htmlBody || textToHtml(draft.textBody));
+				setHtml(stored.body);
+				setQuotedHtml(stored.quoted);
+				setStoredAttachments(draft.attachments?.filter((item) => item.disposition === "attachment") ?? []);
 				setLoadedDraftMailboxId(draft.mailboxId);
 				setLoadedDraftFrom(getEmailAddress(draft.fromAddr).toLowerCase());
 			})
@@ -146,14 +161,15 @@ export function ComposeForm({
 	useEffect(() => {
 		if (loadingDraft) return;
 		const nextSignature = selectedMailbox?.signature ?? "";
-		setText((current) => applyMailboxSignature(current, previousSignature.current, nextSignature));
+		setHtml((current) => applyMailboxSignatureHtml(current, previousSignature.current, nextSignature));
 		previousSignature.current = nextSignature;
 	}, [loadingDraft, selectedMailbox?.id, selectedMailbox?.signature]);
 
 	useEffect(() => {
-		const bodyContent = text.trim();
+		const bodyContent = htmlToPlainText(html).trim();
 		const signatureOnly = bodyContent === (selectedMailbox?.signature?.trim() ?? "");
-		const hasContent = to.length > 0 || cc.length > 0 || bcc.length > 0 || subject.trim() || (bodyContent && !signatureOnly);
+		const hasContent =
+			to.length > 0 || cc.length > 0 || bcc.length > 0 || subject.trim() || quotedHtml || (bodyContent && !signatureOnly);
 		if (!fromAddr || !hasContent || loadingDraft) return;
 		if (saveTimer.current) clearTimeout(saveTimer.current);
 
@@ -165,7 +181,8 @@ export function ComposeForm({
 				cc: recipientsToHeader(cc),
 				bcc: recipientsToHeader(bcc),
 				subject,
-				text,
+				html: joinQuotedHtml(html, quotedHtml),
+				text: htmlToPlainText(joinQuotedHtml(html, quotedHtml)),
 				inReplyTo: threading?.inReplyTo ?? null,
 				references: threading?.references ?? null,
 				threadId: threading?.threadId ?? null,
@@ -182,7 +199,7 @@ export function ComposeForm({
 		return () => {
 			if (saveTimer.current) clearTimeout(saveTimer.current);
 		};
-	}, [bcc, cc, draftId, fromAddr, loadingDraft, selectedMailbox?.id, selectedMailbox?.signature, subject, text, threading, to]);
+	}, [bcc, cc, draftId, fromAddr, html, loadingDraft, quotedHtml, selectedMailbox?.id, selectedMailbox?.signature, subject, threading, to]);
 
 	async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -195,7 +212,12 @@ export function ComposeForm({
 			setToast({ type: "error", message: `"${invalid}" is not a valid email address` });
 			return;
 		}
+		if (!hasMeaningfulHtml(html) && !quotedHtml) {
+			setToast({ type: "error", message: "Write a message before sending" });
+			return;
+		}
 		setLoading(true);
+		const fullHtml = joinQuotedHtml(html, quotedHtml);
 		const res = await authFetch("/api/send", {
 			method: "POST",
 			body: buildSendFormData({
@@ -205,9 +227,11 @@ export function ComposeForm({
 				cc: recipientsToHeader(cc),
 				bcc: recipientsToHeader(bcc),
 				subject,
-				text,
+				text: htmlToPlainText(fullHtml),
+				html: fullHtml,
 				mailboxId: selectedMailbox?.id,
 				threading: threading ?? undefined,
+				draftId: storedAttachments.length > 0 ? draftId : null,
 			}),
 		});
 		const data = (await res.json()) as { messageId?: string; error?: string };
@@ -230,21 +254,35 @@ export function ComposeForm({
 		setShowCc(false);
 		setShowBcc(false);
 		setThreading(null);
+		setStoredAttachments([]);
 		setSubject("");
-		setText(applyMailboxSignature("", "", selectedMailbox?.signature));
+		setHtml(applyMailboxSignatureHtml("", "", selectedMailbox?.signature));
+		setQuotedHtml(null);
 		setAttachments([]);
 		setToast({ type: "success", message: "Message sent" });
 		window.dispatchEvent(new Event("mailflare:messages-changed"));
 	}
 
+	async function removeStoredAttachment(attachmentId: string) {
+		if (!draftId) return;
+		const res = await authFetch(`/api/drafts/${draftId}/attachments/${attachmentId}`, { method: "DELETE" });
+		if (!res.ok) {
+			setToast({ type: "error", message: "Could not remove attachment" });
+			return;
+		}
+		setStoredAttachments((current) => current.filter((item) => item.id !== attachmentId));
+	}
+
 	function addAttachments(files: FileList | null) {
 		if (!files) return;
 		const nextFiles = Array.from(files);
-		const nextCount = attachments.length + nextFiles.length;
-		const totalSize = [...attachments.map((attachment) => attachment.file), ...nextFiles].reduce(
-			(total, file) => total + file.size,
-			0,
-		);
+		const nextCount = storedAttachments.length + attachments.length + nextFiles.length;
+		const totalSize =
+			storedAttachments.reduce((total, item) => total + item.size, 0) +
+			[...attachments.map((attachment) => attachment.file), ...nextFiles].reduce(
+				(total, file) => total + file.size,
+				0,
+			);
 
 		if (nextCount > 10) {
 			setToast({ type: "error", message: "A message can include at most 10 attachments" });
@@ -294,7 +332,16 @@ export function ComposeForm({
 				<div className="flex h-9 items-center justify-between bg-neutral-800 px-4 text-sm font-medium text-white">
 					<span className="flex items-center gap-2">
 						{threading?.inReplyTo && <Reply className="h-3.5 w-3.5 text-neutral-300" />}
-						{loadingDraft ? "Loading draft" : threading?.inReplyTo ? "Reply" : draftId ? "Draft saved" : "New Message"}
+						{!threading?.inReplyTo && /^fwd?:/i.test(subject) && <Forward className="h-3.5 w-3.5 text-neutral-300" />}
+						{loadingDraft
+							? "Loading draft"
+							: threading?.inReplyTo
+								? "Reply"
+								: /^fwd?:/i.test(subject)
+									? "Forward"
+									: draftId
+										? "Draft saved"
+										: "New Message"}
 					</span>
 					{mode === "popup" && (
 						<div className="flex items-center gap-3 text-neutral-300">
@@ -379,18 +426,36 @@ export function ComposeForm({
 						className="h-8 border-0 px-0 py-1 shadow-none focus-visible:ring-0"
 					/>
 				</div>
-				<div className="min-h-0 flex-1 px-4 py-2">
-					<Label htmlFor={`${mode}-text`} className="sr-only">Body</Label>
-					<Textarea
-						id={`${mode}-text`}
-						value={text}
-						onChange={(event) => setText(event.target.value)}
-						disabled={loadingDraft}
-						className="h-full min-h-full resize-none border-0 px-0 shadow-none focus-visible:ring-0"
-					/>
-				</div>
-				{attachments.length > 0 && (
+				<Label htmlFor={`${mode}-text`} className="sr-only">Body</Label>
+				<RichTextEditor
+					id={`${mode}-text`}
+					value={html}
+					onChange={setHtml}
+					quotedHtml={quotedHtml}
+					disabled={loadingDraft}
+					placeholder="Write your message"
+				/>
+				{(attachments.length > 0 || storedAttachments.length > 0) && (
 					<div className="flex flex-wrap gap-2 border-t border-neutral-100 px-4 py-3">
+						{storedAttachments.map((attachment) => (
+							<div
+								key={attachment.id}
+								className="flex max-w-full items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm"
+								title="Carried over from the forwarded message"
+							>
+								<FileText className="h-4 w-4 shrink-0 text-neutral-500" />
+								<span className="max-w-48 truncate">{attachment.filename}</span>
+								<span className="text-xs text-neutral-400">{formatAttachmentSize(attachment.size)}</span>
+								<button
+									type="button"
+									onClick={() => void removeStoredAttachment(attachment.id)}
+									className="rounded-full p-1 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700"
+								>
+									<X className="h-3.5 w-3.5" />
+									<span className="sr-only">Remove attachment</span>
+								</button>
+							</div>
+						))}
 						{attachments.map((attachment) => (
 							<div
 								key={attachment.id}

@@ -11,4 +11,6 @@ export type DraftPayload = {
 	inReplyTo?: string | null;
 	references?: string | null;
 	threadId?: string | null;
+	/** Copy this message's attachments onto the new draft (forwarding). */
+	forwardOfMessageId?: string | null;
 };

@@ -34,6 +34,7 @@ export async function parseSendRequest(request: Request): Promise<SendRequestPay
 		inReplyTo: getOptionalFormValue(form, "inReplyTo"),
 		references: getOptionalFormValue(form, "references"),
 		threadId: getOptionalFormValue(form, "threadId"),
+		draftId: getOptionalFormValue(form, "draftId"),
 		subject: String(form.get("subject") ?? ""),
 		text: getOptionalFormValue(form, "text"),
 		html: getOptionalFormValue(form, "html"),

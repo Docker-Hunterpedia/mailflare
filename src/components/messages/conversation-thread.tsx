@@ -131,7 +131,7 @@ export function ConversationMessageCard({
 						&lt;{getEmailAddress(message.fromAddr)}&gt;
 					</p>
 					{body.html ? (
-						<div className="prose max-w-none text-sm text-neutral-900" dangerouslySetInnerHTML={{ __html: body.html }} />
+						<div className="email-body max-w-none text-sm text-neutral-900" dangerouslySetInnerHTML={{ __html: body.html }} />
 					) : (
 						<pre className="whitespace-pre-wrap font-sans text-sm text-neutral-900">{body.text}</pre>
 					)}

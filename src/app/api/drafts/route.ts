@@ -7,6 +7,8 @@ import { requireUser } from "@/lib/auth/cookies";
 import { newId } from "@/lib/ids";
 import { buildSnippet } from "@/lib/email/parse";
 import { readJsonBody } from "@/lib/http/request";
+import { copyMessageAttachments } from "@/lib/email/attachments";
+import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import { RequestBodyTooLargeError } from "@/lib/http/errors";
 import type { DraftPayload } from "./types";
 import { getDraftSender } from "./utils";
@@ -49,6 +51,21 @@ export async function POST(request: Request) {
 	if ("error" in sender) {
 		return NextResponse.json({ error: sender.error }, { status: 403 });
 	}
+	// Forwarding: the source must be readable by this user before its files are copied.
+	let forwardSourceId: string | null = null;
+	if (input.forwardOfMessageId) {
+		const [source] = await db
+			.select({ id: messages.id, mailboxId: messages.mailboxId })
+			.from(messages)
+			.where(eq(messages.id, input.forwardOfMessageId))
+			.limit(1);
+		const sourceAccess = source?.mailboxId ? await getMailboxAccessLevel(db, user, source.mailboxId) : null;
+		if (!source || !sourceAccess?.canRead) {
+			return NextResponse.json({ error: "Message not found" }, { status: 404 });
+		}
+		forwardSourceId = source.id;
+	}
+
 	const draftId = newId("msg");
 	const text = input.text ?? "";
 	const html = input.html ?? "";
@@ -73,5 +90,6 @@ export async function POST(request: Request) {
 		threadId: input.threadId || null,
 	});
 
-	return NextResponse.json({ draft: { id: draftId } });
+	const attachments = forwardSourceId ? await copyMessageAttachments(env, forwardSourceId, draftId) : [];
+	return NextResponse.json({ draft: { id: draftId, attachments } });
 }

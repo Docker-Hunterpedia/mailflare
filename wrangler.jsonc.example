@@ -20,14 +20,9 @@
 			"service": "mailflare",
 		},
 	],
-	"workflows": [
-		{
-			"name": "mailflare-database-backup",
-			"binding": "DATABASE_BACKUP_WORKFLOW",
-			"class_name": "DatabaseBackupWorkflow",
-			"schedules": ["0 2 * * *"],
-		},
-	],
+	"triggers": {
+		"crons": ["0 2 * * *"],
+	},
 	"ratelimits": [
 		{
 			"name": "LOGIN_RATE_LIMIT",

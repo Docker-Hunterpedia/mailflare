@@ -15,8 +15,8 @@ import {
 	getAccountForwardingDestination,
 	MAILFLARE_FORWARDED_HEADER,
 } from "./src/lib/email/account-forwarding";
+import { runScheduledDatabaseBackup } from "./src/lib/backups/runner";
 export { RealtimeHub } from "./src/lib/realtime/hub";
-export { DatabaseBackupWorkflow } from "./src/lib/backups/workflow";
 
 export default {
 	async fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
@@ -92,5 +92,9 @@ export default {
 				msg.retry({ delaySeconds: 10 });
 			}
 		}
+	},
+
+	async scheduled(controller: ScheduledController, env: CloudflareEnv, ctx: ExecutionContext) {
+		ctx.waitUntil(runScheduledDatabaseBackup(env, new Date(controller.scheduledTime)));
 	},
 } satisfies ExportedHandler<CloudflareEnv>;

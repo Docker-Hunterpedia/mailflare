@@ -26,15 +26,6 @@
       "CF_TOKEN": {
         "description": "Runtime Cloudflare API token used by Mailflare onboarding to call the Zones and Email Routing APIs. Cloudflare's deploy/build token is not passed to the app, so create this separately at https://dash.cloudflare.com/profile/api-tokens with `Zone Read`, `Email Routing Edit`, `Email Sending Edit`, and `Email Routing Rules Write` permissions for the zones you will connect. Paste only the token secret value, without `Bearer`."
       },
-      "CF_AID": {
-        "description": "Cloudflare account ID. Required for automatic database backups."
-      },
-      "D1_DATABASE_ID": {
-        "description": "Cloudflare D1 database ID for the mailflare database. Required for automatic database backups."
-      },
-      "D1_BACKUP_TOKEN": {
-        "description": "Optional Cloudflare API token allowed to export the target D1 database. Store this as a secret. If omitted, backups reuse CF_TOKEN."
-      },
       "TURNSTILE_SECRET_KEY": {
         "description": "Cloudflare Turnstile secret key used to verify login and first-run registration challenges. Pair with NEXT_PUBLIC_TURNSTILE_SITE_KEY at build time."
       },

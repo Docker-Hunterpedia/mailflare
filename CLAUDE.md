@@ -28,7 +28,7 @@ Do not deploy with `opennextjs-cloudflare deploy`. The deploy script deliberatel
 
 ## Architecture
 
-Next.js 16 App Router running on Cloudflare Workers via OpenNext. Drizzle ORM over D1, R2 for raw MIME and attachments, Queues for async mail processing, a Durable Object for realtime, and a Workflow for backups.
+Next.js 16 App Router running on Cloudflare Workers via OpenNext. Drizzle ORM over D1, R2 for raw MIME, attachments, and record backups, Queues for async mail processing, a Durable Object for realtime, and a cron trigger for scheduled backups.
 
 ### worker.ts is the entrypoint
 
@@ -38,7 +38,7 @@ Next.js 16 App Router running on Cloudflare Workers via OpenNext. Drizzle ORM ov
 - **`email`** — the Cloudflare Email Routing handler. Resolves domain routing rules first (`resolveIncomingMail` in `src/lib/email/incoming.ts`) because `message.setReject()` and `message.forward()` only exist here, then applies optional account-level forwarding (loop-guarded by the `MAILFLARE_FORWARDED_HEADER`), writes raw MIME to R2, and enqueues to `INBOUND_QUEUE`. It never parses mail inline.
 - **`queue`** — a single consumer for both queues; `isInboundQueueMessage` and `isWebhookRetryMessage` in `worker-utils.ts` discriminate inbound mail, webhook retries, and outbound payloads. Failures `retry({ delaySeconds: 10 })`.
 
-It also re-exports `RealtimeHub` and `DatabaseBackupWorkflow`, which is why those classes must live outside the Next build.
+It also re-exports `RealtimeHub`, which is why that class must live outside the Next build.
 
 ### Mail pipeline
 

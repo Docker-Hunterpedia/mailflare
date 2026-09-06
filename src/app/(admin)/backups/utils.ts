@@ -31,7 +31,7 @@ export async function saveBackupSettings(settings: BackupSettings): Promise<void
 export async function startBackup(): Promise<void> {
 	const response = await authFetch("/api/backups", { method: "POST" });
 	const data = (await response.json()) as { error?: string };
-	if (!response.ok) throw new Error(data.error ?? "Failed to start backup");
+	if (!response.ok) throw new Error(data.error ?? "Failed to run backup");
 }
 
 export async function removeBackup(id: string): Promise<void> {

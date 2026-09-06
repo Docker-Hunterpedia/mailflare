@@ -1,24 +1,7 @@
-import type { BackupScheduleType, BackupWorkflowBinding, DatabaseBackupDocument, DatabaseRecord } from "./types";
+import type { BackupScheduleType, DatabaseBackupDocument, DatabaseRecord } from "./types";
 
 export const BACKUP_SETTINGS_ID = "default";
 export const BACKUP_PREFIX = "backups/database";
-
-export class BackupWorkflowUnavailableError extends Error {
-	constructor() {
-		super(
-			"Database backups are unavailable because the DATABASE_BACKUP_WORKFLOW binding is missing. Deploy the app with `npm run deploy` so Wrangler applies the workflow configuration.",
-		);
-		this.name = "BackupWorkflowUnavailableError";
-	}
-}
-
-export function getBackupWorkflowBinding(env: CloudflareEnv): BackupWorkflowBinding {
-	const workflow = env.DATABASE_BACKUP_WORKFLOW as BackupWorkflowBinding | undefined;
-	if (!workflow || typeof workflow.create !== "function") {
-		throw new BackupWorkflowUnavailableError();
-	}
-	return workflow;
-}
 
 export function isBackupDue(
 	scheduleType: BackupScheduleType,

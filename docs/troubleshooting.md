@@ -39,11 +39,11 @@ For remote migrations after the first deployment:
 
 Do not commit that account-specific ID to a reusable public repository.
 
-## Backup binding is missing
+## Scheduled backups are not running
 
-Deploy the complete Worker with `npm run deploy`. A local Next.js server or a source-only update does not provision the `DATABASE_BACKUP_WORKFLOW` binding.
+Deploy the complete Worker with `npm run deploy`. A local Next.js server or a source-only update does not provision the cron trigger declared in `wrangler.jsonc`.
 
-Also confirm that `CF_AID` and `D1_DATABASE_ID` are set, and that `D1_BACKUP_TOKEN` or `CF_TOKEN` can export the database.
+Also confirm that automatic backups are enabled under **Admin → Backups** and that the Worker has its `DB` and `BUCKET` bindings.
 
 ## Inbound mail is not arriving
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { backups, backupSettings } from "@/db/schema";
 import { newId } from "@/lib/ids";
@@ -45,6 +45,7 @@ export async function createScheduledBackupIfDue(env: CloudflareEnv, now: Date):
 		.where(
 			and(
 				eq(backups.trigger, "scheduled"),
+				inArray(backups.status, ["queued", "running", "completed"]),
 				gte(backups.createdAt, new Date(start)),
 				lt(backups.createdAt, new Date(end)),
 			),

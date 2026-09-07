@@ -32,6 +32,7 @@ import {
 	getMailboxAddress,
 	runBulkMessageAction,
 } from "./utils";
+import clsx from "clsx";
 
 const pageSize = 25;
 
@@ -76,13 +77,12 @@ function MessageListRow({
 	if (compact && config.folder !== "drafts") {
 		return (
 			<div
-				className={`group grid grid-cols-[20px_minmax(0,1fr)] gap-3 border-l-2 px-4 py-3 transition-colors ${
-					active
-						? "border-l-blue-600 bg-blue-50"
-						: selected
-							? "border-l-transparent bg-neutral-50"
-							: "border-l-transparent hover:bg-neutral-50"
-				} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
+				className={`group grid grid-cols-[20px_minmax(0,1fr)] gap-3 border-l-2 px-4 py-3 transition-colors ${active
+					? "border-l-blue-600 bg-blue-50"
+					: selected
+						? "border-l-transparent bg-neutral-50"
+						: "border-l-transparent hover:bg-neutral-50"
+					} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
 				draggable={draggable}
 				onDragStart={(event) => {
 					if (!draggable) return;
@@ -98,22 +98,22 @@ function MessageListRow({
 				/>
 				<Link href={href} onClick={onMessageNavigate} className="min-w-0">
 					<span className="flex items-baseline justify-between gap-3">
-						<span className={getMessagePartyClassName(message, config.folder)}>
+						<span className={clsx(unread && "font-semibold",getMessagePartyClassName(message, config.folder))}>
 							{party}
+
+							{(message.threadCount ?? 1) > 1 && (
+								<span className="ml-2 text-xs font-normal text-neutral-500">{message.threadCount}</span>
+							)}
 						</span>
-						<span className="shrink-0 text-[11px] text-neutral-400">
+						<span className={clsx(unread ?"font-medium":"text-neutral-400","shrink-0 text-[11px]")}>
 							{formatMessageListTimestamp(message.createdAt)}
 						</span>
 					</span>
 					<span
-						className={`mt-1 block truncate text-sm ${
-							unread ? "font-semibold text-neutral-900" : "text-neutral-700"
-						}`}
+						className={`mt-1 block truncate text-sm ${unread ? "font-semibold text-neutral-900" : "text-neutral-700"
+							}`}
 					>
 						{message.subject ?? "(no subject)"}
-						{(message.threadCount ?? 1) > 1 && (
-							<span className="ml-1 text-xs font-normal text-neutral-500">({message.threadCount})</span>
-						)}
 					</span>
 					<span className="mt-0.5 block truncate text-xs leading-5 text-neutral-500">
 						{preview}
@@ -124,8 +124,7 @@ function MessageListRow({
 	}
 
 	const className =
-		`group relative grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto] items-center gap-3 px-6 text-left text-sm hover:z-10 hover:bg-[#f2f6fc] hover:shadow-sm ${
-			active || selected ? "bg-blue-50" : ""
+		`group relative grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto] items-center gap-3 px-6 text-left text-sm hover:z-10 hover:bg-[#f2f6fc] hover:shadow-sm ${active || selected ? "bg-blue-50" : ""
 		} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`;
 	const content = (
 		<>
@@ -149,23 +148,23 @@ function MessageListRow({
 			{(config.folder !== "inbox" || message.direction !== "inbound") && (
 				<Icon className="h-4 w-4 text-neutral-300" />
 			)}
-			<span className={getMessagePartyClassName(rowMessage, config.folder)}>
+			<span className={clsx(unread && "font-semibold", getMessagePartyClassName(rowMessage, config.folder))}>
 				{party}
+
+				{(message.threadCount ?? 1) > 1 && (
+					<span className="ml-2 text-xs text-neutral-500">{message.threadCount}</span>
+				)}
 			</span>
 			<span className="truncate text-neutral-700">
-				<span className={unread ? "font-bold text-neutral-900" : ""}>
+				<span className={unread ? "font-semibold text-neutral-900" : ""}>
 					{rowMessage.subject ?? "(no subject)"}
 				</span>
-				{(message.threadCount ?? 1) > 1 && (
-					<span className="ml-1 text-xs text-neutral-500">({message.threadCount})</span>
-				)}
 				<span className="text-neutral-500"> - {getMessagePreview(rowMessage, config.folder)}</span>
 			</span>
 			<time
 				dateTime={message.createdAt}
-				className={`min-w-[96px] whitespace-nowrap text-right text-xs group-hover:opacity-0 ${
-					unread ? "font-semibold text-neutral-800" : "text-neutral-500"
-				}`}
+				className={`min-w-[96px] whitespace-nowrap text-right text-xs group-hover:opacity-0 ${unread ? "font-semibold text-neutral-800" : "text-neutral-500"
+					}`}
 			>
 				{formatMessageListTimestamp(message.createdAt)}
 			</time>

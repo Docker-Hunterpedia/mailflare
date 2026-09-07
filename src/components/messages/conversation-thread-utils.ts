@@ -6,16 +6,25 @@ export function partitionThread(
 	messages: ThreadMessage[],
 	currentMessageId: string,
 	position: "before" | "after",
+	latestMessagesFirst: boolean,
 ): ThreadMessage[] {
 	const index = messages.findIndex((message) => message.id === currentMessageId);
-	if (index < 0) return position === "before" ? messages : [];
-	return position === "before" ? messages.slice(0, index) : messages.slice(index + 1);
+	const slice = index < 0
+		? position === "before" ? messages : []
+		: position === "before" ? messages.slice(0, index) : messages.slice(index + 1);
+	return latestMessagesFirst ? [...slice].reverse() : slice;
 }
 
 export function getConversationSender(message: ThreadMessage, currentAccountName?: string): string {
 	if (message.direction === "outbound") return currentAccountName ?? getEmailDisplayName(message.fromAddr);
 	return message.fromContactName ?? getEmailDisplayName(message.fromAddr);
 }
+
+export function getConversationSenderEmail(message: ThreadMessage): string {
+	if (message.direction === "outbound") return getEmailAddress(message.fromAddr);
+	return getEmailAddress(message.fromAddr);
+}
+
 
 /** "to Maya, Sam" style summary for a collapsed card. */
 export function getConversationRecipients(message: ThreadMessage): string {

@@ -1,21 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { ChevronsUpDown, Paperclip } from "lucide-react";
-import { ContactDetailsTrigger } from "@/components/contacts/contact-details";
 import { ContactAvatar } from "@/components/contacts/contact-avatar";
-import { getMessageBackHref } from "@/components/message-actions/utils";
+import { runSingleMessageAction } from "@/components/message-actions/utils";
 import { sanitizeEmailHtml } from "@/app/(dashboard)/inbox/[messageId]/email-html-sanitizer";
 import { getMessageBodyDisplay, resolveInlineAttachmentUrls } from "@/app/(dashboard)/inbox/[messageId]/utils";
-import { getEmailAddress } from "@/lib/email/address";
+
 import { cn } from "@/lib/utils";
 import type { ConversationMessageCardProps, ConversationThreadProps } from "./conversation-thread-types";
 import { ThreadMessageActions } from "./thread-message-actions";
 import {
 	getConversationRecipients,
 	getConversationSender,
+	getConversationSenderEmail,
 	partitionThread,
 } from "./conversation-thread-utils";
 
@@ -31,10 +30,11 @@ export function ConversationThread({
 	currentAccountName,
 	ownAddress,
 	ownAddresses,
+	latestMessagesFirst,
 	expandedAll,
 	onExpandedAllChange,
 }: ConversationThreadProps) {
-	const slice = partitionThread(messages, currentMessageId, position);
+	const slice = partitionThread(messages, currentMessageId, position, latestMessagesFirst);
 	if (slice.length === 0) return null;
 	const firstMessage = slice[0];
 	const lastMessage = slice.at(-1)!;
@@ -45,10 +45,10 @@ export function ConversationThread({
 	return (
 		<section
 			aria-label={position === "before" ? "Earlier messages in this conversation" : "Later messages in this conversation"}
-			className={cn(position === "before" ? "" : "pb-6")}
+			className={cn(position === (latestMessagesFirst ? "before" : "after") ? "pb-6" : "")}
 		>
-			<ol className={cn(!collapsed && "divide-y divide-neutral-100", "border-b border-neutral-200")}>
-				<li className="border-t-0">
+			<ol className={cn(!collapsed && "divide-y divide-neutral-200/50", "border-b border-neutral-200")}>
+				<li className={latestMessagesFirst ? "border-t" : "border-t-0"}>
 					<ConversationMessageCard
 						message={firstMessage}
 						mailboxId={mailboxId}
@@ -110,12 +110,16 @@ export function ConversationMessageCard({
 	defaultExpanded = false,
 }: ConversationMessageCardProps) {
 	const [locallyExpanded, setLocallyExpanded] = useState(defaultExpanded);
+	const [locallyRead, setLocallyRead] = useState(message.read);
 	const expanded = locallyExpanded;
 	const sender = getConversationSender(message, currentAccountName);
+	const senderEmail = getConversationSenderEmail(message);
 	const recipients = getConversationRecipients(message);
-	const href = `${getMessageBackHref(message.direction, message.status)}/${message.id}`;
+	// const href = `${getMessageBackHref(message.direction, message.status)}/${message.id}`;
 	const outbound = message.direction === "outbound";
 	const attachments = message.attachments.filter((attachment) => attachment.disposition === "attachment");
+
+	useEffect(() => setLocallyRead(message.read), [message.read]);
 
 	let body: { html: string | null; text: string } | null = null;
 	if (expanded) {
@@ -128,10 +132,16 @@ export function ConversationMessageCard({
 
 	return (
 		<article className={cn("bg-white transition-colors px-6", !expanded && "hover:bg-neutral-50")}>
-			<div className="flex w-full items-center gap-3 py-3">
+			<div className="flex w-full items-start gap-3 py-3">
 				<button
 					type="button"
-					onClick={() => setLocallyExpanded((open) => !open)}
+					onClick={() => {
+						const shouldExpand = !locallyExpanded;
+						setLocallyExpanded(shouldExpand);
+						if (!shouldExpand || locallyRead) return;
+						setLocallyRead(true);
+						void runSingleMessageAction(message.id, "read").catch(() => setLocallyRead(false));
+					}}
 					aria-expanded={expanded}
 					className="flex min-w-0 flex-1 items-center gap-3 text-left cursor-pointer"
 				>
@@ -143,17 +153,18 @@ export function ConversationMessageCard({
 					/>
 					<span className="min-w-0 flex-1">
 						<div className="flex flex-col">
-							<span className={cn("truncate text-sm", message.read || outbound ? "text-neutral-900" : "font-semibold text-neutral-900")}>
+							<span className={cn("truncate text-sm font-semibold mt-1", locallyRead || outbound ? "text-neutral-900" : "font-semibold text-neutral-900")}>
 								{sender}
+								{expanded && <span className="text-xs ml-1 opacity-50 font-normal">&lt;{senderEmail}&gt;</span>}
 							</span>
 							{expanded && recipients && <span className="text-xs font-normal text-neutral-500">to {recipients}</span>}
 						</div>
 						{!expanded && (
-							<span className="block truncate text-xs text-neutral-500">{message.snippet || "No preview"}</span>
+							<span className="block truncate text-[13px] text-neutral-500">{message.snippet || "No preview"}</span>
 						)}
 					</span>
 				</button>
-				<span className="flex shrink-0 items-center gap-2 text-xs">
+				<span className="flex shrink-0 items-center gap-2 text-xs mr-2 mt-2">
 					{attachments.length > 0 && <Paperclip className="h-3.5 w-3.5" aria-label={`${attachments.length} attachments`} />}
 					{dayjs(message.createdAt).format("MMM DD, YYYY, hh:mmA")}
 				</span>

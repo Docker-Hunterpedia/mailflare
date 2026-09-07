@@ -10,6 +10,7 @@ export type ConversationThreadProps = {
 	currentAccountName?: string;
 	ownAddress?: string | null;
 	ownAddresses?: string[];
+	latestMessagesFirst: boolean;
 	expandedAll: boolean;
 	onExpandedAllChange: (expanded: boolean) => void;
 };

@@ -17,6 +17,7 @@ import { PreviousMessage } from "@/components/previous-message";
 import { ConversationThread } from "@/components/messages/conversation-thread";
 import { ThreadMessageActions } from "@/components/messages/thread-message-actions";
 import { useMessageThread } from "@/components/messages/use-message-thread";
+import { useLatestMessagesFirst } from "@/components/messages/use-latest-messages-first";
 import { getMessageBackHref } from "@/components/message-actions/utils";
 import { getEmailAddress, getEmailDisplayName, splitEmailAddressList } from "@/lib/email/address";
 import type { MessageAttachment, MessageDetailResponse } from "./types";
@@ -41,6 +42,7 @@ export default function MessageDetailPage() {
   const [previewAttachment, setPreviewAttachment] =
     useState<MessageAttachment | null>(null);
   const [threadExpanded, setThreadExpanded] = useState(false);
+  const [latestMessagesFirst] = useLatestMessagesFirst();
   usePageLoading(loading);
   const thread = useMessageThread(messageId, data?.message?.threadId);
 
@@ -132,9 +134,7 @@ export default function MessageDetailPage() {
   );
   return (
     <div className="h-full overflow-y-auto overscroll-contain scrollbar-gutter-stable">
-      {message.direction === "inbound" && !message.read && (
-        <MarkAsRead messageId={message.id} />
-      )}
+      {!message.read && <MarkAsRead messageId={message.id} />}
       <div className="flex pt-3 pb-2.75 items-center justify-between px-2 border-b border-neutral-200 sticky top-0 bg-white">
         <div className="flex-1" />
         {/* <div className="flex items-center flex-row gap-6">
@@ -169,17 +169,18 @@ export default function MessageDetailPage() {
       </div>
       <ConversationThread
         currentMessageId={message.id}
-        position="before"
+        position={latestMessagesFirst ? "after" : "before"}
         messages={thread.messages}
         mailboxId={message.mailboxId}
         currentAccountName={currentAccountName}
         ownAddress={ownAddress}
         ownAddresses={ownAddresses}
+        latestMessagesFirst={latestMessagesFirst}
         expandedAll={threadExpanded}
         onExpandedAllChange={setThreadExpanded}
       />
       <article className="px-6 py-4">
-        <div className="mb-6 flex items-start justify-between border-b border-neutral-100 pb-5">
+        <div className="flex items-start justify-between pb-5">
           <div>
             <p className="text-sm text-neutral-900">
               <b>
@@ -306,12 +307,13 @@ export default function MessageDetailPage() {
       </article>
       <ConversationThread
         currentMessageId={message.id}
-        position="after"
+        position={latestMessagesFirst ? "before" : "after"}
         messages={thread.messages}
         mailboxId={message.mailboxId}
         currentAccountName={currentAccountName}
         ownAddress={ownAddress}
         ownAddresses={ownAddresses}
+        latestMessagesFirst={latestMessagesFirst}
         expandedAll={threadExpanded}
         onExpandedAllChange={setThreadExpanded}
       />

@@ -17,6 +17,7 @@ import {
 	getConversationSenderEmail,
 	partitionThread,
 } from "./conversation-thread-utils";
+import clsx from "clsx";
 
 /**
  * The other messages in a conversation, ordered oldest to newest and collapsed
@@ -47,8 +48,8 @@ export function ConversationThread({
 			aria-label={position === "before" ? "Earlier messages in this conversation" : "Later messages in this conversation"}
 			className={cn(position === (latestMessagesFirst ? "before" : "after") ? "pb-6" : "")}
 		>
-			<ol className={cn(!collapsed && "divide-y divide-neutral-200/50", "border-b border-neutral-200")}>
-				<li className={latestMessagesFirst ? "border-t" : "border-t-0"}>
+			<ol className={cn(!collapsed && "divide-y divide-neutral-200/50", latestMessagesFirst ? "border-y" : "border-b", "border-neutral-200")}>
+				<li className={"border-t-0" }>
 					<ConversationMessageCard
 						message={firstMessage}
 						mailboxId={mailboxId}
@@ -160,7 +161,7 @@ export function ConversationMessageCard({
 							{expanded && recipients && <span className="text-xs font-normal text-neutral-500">to {recipients}</span>}
 						</div>
 						{!expanded && (
-							<span className="block truncate text-[13px] text-neutral-500">{message.snippet || "No preview"}</span>
+							<span className={clsx( !locallyRead ? "font-semibold" : "text-neutral-500", "block truncate text-[13px]")}>{message.snippet || "No preview"}</span>
 						)}
 					</span>
 				</button>
@@ -177,14 +178,6 @@ export function ConversationMessageCard({
 			</div>
 			{expanded && body && (
 				<div className="pb-4 pt-2">
-					{/* <p className="mb-3 text-xs text-neutral-500">
-						{message.direction === "inbound" ? (
-							<ContactDetailsTrigger mailboxId={mailboxId} address={message.fromAddr} name={sender} />
-						) : (
-							sender
-						)}{" "}
-						&lt;{getEmailAddress(message.fromAddr)}&gt;
-					</p> */}
 					{body.html ? (
 						<div className="email-body max-w-none text-sm text-neutral-900" dangerouslySetInnerHTML={{ __html: body.html }} />
 					) : (

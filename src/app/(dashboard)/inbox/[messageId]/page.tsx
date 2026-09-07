@@ -182,7 +182,7 @@ export default function MessageDetailPage() {
       <article className="px-6 py-4">
         <div className="flex items-start justify-between pb-5">
           <div>
-            <p className="text-sm text-neutral-900">
+            <p className="text-sm text-neutral-900 mt-1.25">
               <b>
                 {message.direction === "inbound" ? (
                   <ContactDetailsTrigger

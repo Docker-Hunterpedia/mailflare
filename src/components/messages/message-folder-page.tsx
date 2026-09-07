@@ -28,6 +28,7 @@ import {
 	getMessageParty,
 	getMessagePartyClassName,
 	getMessagePreview,
+	isMessageListRowUnread,
 	formatEmailPageTitle,
 	getMailboxAddress,
 	runBulkMessageAction,
@@ -50,12 +51,13 @@ function MessageListRow({
 	const Icon = config.icon;
 	const { openDraftComposer } = useCompose();
 	const [read, setRead] = useState(message.read);
+	const [threadUnread, setThreadUnread] = useState(message.threadUnread);
 	const [starred, setStarred] = useState(message.starred);
 	useEffect(() => setRead(message.read), [message.read]);
+	useEffect(() => setThreadUnread(message.threadUnread), [message.threadUnread]);
 	useEffect(() => setStarred(message.starred), [message.starred]);
-	const rowMessage = { ...message, read, starred };
-	// A conversation row is unread when any message in it still is.
-	const unread = (rowMessage.direction === "inbound" && !rowMessage.read) || (message.threadUnread ?? 0) > 0;
+	const rowMessage = { ...message, read, starred, threadUnread };
+	const unread = isMessageListRowUnread(rowMessage);
 	const draggable = config.folder === "inbox" && message.direction === "inbound";
 	const party = getMessageParty(rowMessage, config.folder, currentAccountName);
 	const preview = getMessagePreview(rowMessage, config.folder);
@@ -63,15 +65,18 @@ function MessageListRow({
 	const navigation = useMessageNavigation(href, rowMessage);
 
 	function onMessageNavigate(event: MouseEvent<HTMLAnchorElement>) {
-		if (unread && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+		if (!read && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+			const previousThreadUnread = threadUnread;
 			setRead(true);
-			dispatchMessageCountsDelta({ inboxUnreadDelta: -1 });
+			if (previousThreadUnread !== undefined) setThreadUnread(Math.max(0, previousThreadUnread - 1));
+			if (message.direction === "inbound") dispatchMessageCountsDelta({ inboxUnreadDelta: -1 });
 			void runBulkMessageAction([message.id], "read", false).catch(() => {
 				setRead(false);
-				dispatchMessageCountsDelta({ inboxUnreadDelta: 1 });
+				setThreadUnread(previousThreadUnread);
+				if (message.direction === "inbound") dispatchMessageCountsDelta({ inboxUnreadDelta: 1 });
 			});
 		}
-		navigation.onNavigate(event, unread);
+		navigation.onNavigate(event, !read);
 	}
 
 	if (compact && config.folder !== "drafts") {

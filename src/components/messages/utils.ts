@@ -29,8 +29,14 @@ export function formatRecipientSummary(toAddr: string, firstContactName?: string
 export function getMessagePartyClassName(message: Message, folder: MessageFolderConfig["folder"]) {
 	if (folder === "drafts") return "truncate font-semibold text-red-600";
 
-	const unread = message.direction === "inbound" && !message.read;
+	const unread = isMessageListRowUnread(message);
 	return `truncate ${unread ? "font-bold text-neutral-900" : "text-neutral-800"}`;
+}
+
+/** A grouped row is read only after every message represented by it is read. */
+export function isMessageListRowUnread(message: Message): boolean {
+	if (message.threadMessageIds) return (message.threadUnread ?? 0) > 0;
+	return message.direction === "inbound" && !message.read;
 }
 
 export function getMessagePreview(message: Message, folder: MessageFolderConfig["folder"]) {

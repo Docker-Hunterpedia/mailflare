@@ -32,7 +32,7 @@ export type Message = {
 	references?: string | null;
 	/** Messages in the same conversation (excluding drafts and trash), when the list API computed it. */
 	threadCount?: number;
-	/** Unread inbound messages in the conversation. */
+	/** Unread messages in the conversation; zero means the grouped thread is read. */
 	threadUnread?: number;
 	/** In conversation view: every message this row stands for within the current folder. */
 	threadMessageIds?: string[];

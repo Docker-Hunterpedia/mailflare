@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Forward, Minimize2, Paperclip, Reply, X } from "lucide-react";
+import { FileText, Forward, Minimize2, Paperclip, Reply, Trash2, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +16,6 @@ import { buildSendFormData, fetchDraft, formatAttachmentSize } from "./utils";
 import { RecipientInput } from "./recipient-input";
 import { RichTextEditor } from "./rich-text-editor";
 import { ScheduleSendMenu } from "./schedule-send-menu";
-import { formatScheduledSend } from "./schedule-send-utils";
 import {
 	applyMailboxSignatureHtml,
 	hasMeaningfulHtml,
@@ -38,6 +38,7 @@ export function ComposeForm({
 	draftIdToLoad?: string | null;
 	onClose?: () => void;
 }) {
+	const router = useRouter();
 	const { selectedMailbox, setSelectedMailbox, mailboxes } = useSelectedMailbox();
 	const [draftId, setDraftId] = useState<string | null>(null);
 	const [to, setTo] = useState<string[]>([]);
@@ -56,11 +57,13 @@ export function ComposeForm({
 	const [toast, setToast] = useState<Toast>(null);
 	const [loading, setLoading] = useState(false);
 	const [loadingDraft, setLoadingDraft] = useState(false);
+	const [deletingDraft, setDeletingDraft] = useState(false);
 	const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
 	const [loadedDraftMailboxId, setLoadedDraftMailboxId] = useState<string | null>(null);
 	const [loadedDraftFrom, setLoadedDraftFrom] = useState<string | null>(null);
 	const [selectedFrom, setSelectedFrom] = useState("");
 	const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const draftGeneration = useRef(0);
 	const attachmentInput = useRef<HTMLInputElement | null>(null);
 	const previousSignature = useRef("");
 
@@ -177,6 +180,7 @@ export function ComposeForm({
 		if (!fromAddr || !hasContent || loadingDraft) return;
 		if (saveTimer.current) clearTimeout(saveTimer.current);
 
+		const generation = draftGeneration.current;
 		saveTimer.current = setTimeout(async () => {
 			const payload = {
 				mailboxId: selectedMailbox?.id,
@@ -197,7 +201,13 @@ export function ComposeForm({
 				body: JSON.stringify(payload),
 			});
 			const data = (await res.json()) as { draft?: { id: string } };
-			if (res.ok && data.draft?.id) setDraftId(data.draft.id);
+			if (res.ok && data.draft?.id) {
+				if (generation !== draftGeneration.current) {
+					void authFetch(`/api/drafts/${data.draft.id}`, { method: "DELETE" });
+					return;
+				}
+				setDraftId(data.draft.id);
+			}
 		}, 900);
 
 		return () => {
@@ -267,6 +277,43 @@ export function ComposeForm({
 		setScheduledAt(null);
 		setToast({ type: "success", message: data.scheduled ? "Message scheduled" : "Message sent" });
 		window.dispatchEvent(new Event("mailflare:messages-changed"));
+	}
+
+	async function deleteDraftAndClose() {
+		if (saveTimer.current) clearTimeout(saveTimer.current);
+		draftGeneration.current += 1;
+		setDeletingDraft(true);
+
+		if (draftId) {
+			const res = await authFetch(`/api/drafts/${draftId}`, { method: "DELETE" });
+			if (!res.ok) {
+				setDeletingDraft(false);
+				setToast({ type: "error", message: "Could not delete draft" });
+				return;
+			}
+		}
+
+		setDraftId(null);
+		setTo([]);
+		setCc([]);
+		setBcc([]);
+		setShowCc(false);
+		setShowBcc(false);
+		setThreading(null);
+		setStoredAttachments([]);
+		setSubject("");
+		setHtml(applyMailboxSignatureHtml("", "", selectedMailbox?.signature));
+		setQuotedHtml(null);
+		setAttachments([]);
+		setScheduledAt(null);
+		window.dispatchEvent(new Event("mailflare:messages-changed"));
+
+		if (onClose) {
+			onClose();
+			return;
+		}
+		setDeletingDraft(false);
+		router.push("/inbox");
 	}
 
 	async function removeStoredAttachment(attachmentId: string) {
@@ -482,9 +529,17 @@ export function ComposeForm({
 								</button>
 							</Tooltip>
 							<span className="flex-1" />
-							<p className="min-w-0 truncate text-xs text-neutral-500">
-								{scheduledAt ? `Sends ${formatScheduledSend(scheduledAt)}` : draftId ? "Saved to drafts" : "Autosaves as draft"}
-							</p>
+							<Tooltip label="Delete draft">
+								<button
+									type="button"
+									aria-label="Delete draft"
+									onClick={() => void deleteDraftAndClose()}
+									disabled={loading || loadingDraft || deletingDraft}
+									className="rounded-md p-1.5 text-neutral-500 hover:bg-red-50 hover:text-red-600 disabled:pointer-events-none disabled:opacity-50"
+								>
+									<Trash2 className="h-4 w-4" />
+								</button>
+							</Tooltip>
 						</>
 					}
 				/>

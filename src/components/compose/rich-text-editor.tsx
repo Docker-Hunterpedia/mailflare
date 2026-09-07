@@ -171,7 +171,6 @@ export function RichTextEditor({
 			</div>
 			<div className="relative flex items-center gap-0.5 border-t border-neutral-100 px-4 py-3">
 				{toolbarStart}
-				{toolbarStart && <span className="mx-1 h-5 w-px bg-neutral-200" />}
 				{COMMANDS.map((item) => (
 					<Tooltip key={item.command} label={item.label}>
 						<button

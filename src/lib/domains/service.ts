@@ -109,10 +109,11 @@ export async function getDomainDns(
 	env: CloudflareEnv,
 	domain: typeof domains.$inferSelect,
 ): Promise<DomainDnsView> {
+	const shouldInspectSending = domain.sendingEnabled || Boolean(domain.sendingSubdomainTag);
 	const [routingDns, routingSettings, sendingSubdomains] = await Promise.all([
 		getEmailRoutingDns(env, domain.zoneId),
 		getEmailRoutingSettings(env, domain.zoneId),
-		listSendingSubdomains(env, domain.zoneId),
+		shouldInspectSending ? listSendingSubdomains(env, domain.zoneId) : [],
 	]);
 	const sendingSubdomain = findSendingSubdomain(domain.hostname, sendingSubdomains);
 	let sending: CfDnsRecord[] = [];

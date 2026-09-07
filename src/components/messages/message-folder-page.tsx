@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
-import { ChevronLeft, ChevronRight, ListFilter, MessagesSquare } from "lucide-react";
+import { ChevronLeft, ChevronRight, ListFilter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -246,7 +246,7 @@ export function MessageFolderPage({
 	>([]);
 	const [pendingBulkAction, setPendingBulkAction] = useState(false);
 	const [unreadOnly, setUnreadOnly] = useState(false);
-	const [conversationView, setConversationView] = useConversationView();
+	const [conversationView] = useConversationView();
 	const grouped = conversationView && config.folder !== "drafts";
 	const { messages, isLoading, total, limit, updateMessages } = useMessages(config.folder, selectedMailbox?.id, {
 		query,
@@ -422,21 +422,6 @@ export function MessageFolderPage({
 								<ChevronRight className="h-4 w-4" />
 							</Button>
 						</Tooltip>
-						{config.folder !== "drafts" && (
-							<Tooltip label={conversationView ? "Conversation view on" : "Conversation view off"}>
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									aria-label="Toggle conversation view"
-									aria-pressed={conversationView}
-									onClick={() => setConversationView(!conversationView)}
-									className={conversationView ? "bg-blue-100 text-blue-700 hover:bg-blue-100" : undefined}
-								>
-									<MessagesSquare className="h-4 w-4" />
-								</Button>
-							</Tooltip>
-						)}
 						{config.folder === "inbox" && (
 							<Tooltip label={unreadOnly ? "Showing unread emails" : "Show unread emails only"}>
 								<Button

@@ -183,6 +183,13 @@
       "when": 1788691200000,
       "tag": "0025_add_threading_and_cc_bcc",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1788691200001,
+      "tag": "0026_add_contact_avatars",
+      "breakpoints": true
     }
   ]
 }

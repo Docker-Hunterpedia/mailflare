@@ -25,6 +25,7 @@ export function buildSendFormData(input: {
 	threading?: ComposeThreading;
 	/** Draft whose stored attachments should be sent with the message. */
 	draftId?: string | null;
+	scheduledAt?: Date | null;
 }): FormData {
 	const form = new FormData();
 	form.set("from", input.from);
@@ -39,6 +40,7 @@ export function buildSendFormData(input: {
 	if (input.threading?.references) form.set("references", input.threading.references);
 	if (input.threading?.threadId) form.set("threadId", input.threading.threadId);
 	if (input.draftId) form.set("draftId", input.draftId);
+	if (input.scheduledAt) form.set("scheduledAt", input.scheduledAt.toISOString());
 	for (const attachment of input.attachments) {
 		form.append("attachments", attachment.file);
 	}

@@ -15,6 +15,7 @@ import { MessageDetailSkeleton } from "@/components/page-skeletons";
 import { usePageLoading } from "@/components/page-loading";
 import { PreviousMessage } from "@/components/previous-message";
 import { ConversationThread } from "@/components/messages/conversation-thread";
+import { ThreadMessageActions } from "@/components/messages/thread-message-actions";
 import { useMessageThread } from "@/components/messages/use-message-thread";
 import { getMessageBackHref } from "@/components/message-actions/utils";
 import { getEmailAddress, getEmailDisplayName, splitEmailAddressList } from "@/lib/email/address";
@@ -39,6 +40,7 @@ export default function MessageDetailPage() {
   const [loading, setLoading] = useState(true);
   const [previewAttachment, setPreviewAttachment] =
     useState<MessageAttachment | null>(null);
+  const [threadExpanded, setThreadExpanded] = useState(false);
   usePageLoading(loading);
   const thread = useMessageThread(messageId, data?.message?.threadId);
 
@@ -73,6 +75,10 @@ export default function MessageDetailPage() {
     };
   }, [messageId]);
 
+  useEffect(() => {
+    setThreadExpanded(false);
+  }, [messageId]);
+
   if (loading) {
     return <MessageDetailSkeleton />;
   }
@@ -86,6 +92,12 @@ export default function MessageDetailPage() {
   }
 
   const { message, body, attachments = [] } = data;
+  const currentThreadMessage = {
+    ...message,
+    textBody: body?.textBody ?? null,
+    htmlBody: body?.htmlBody ?? null,
+    attachments,
+  };
   const messageMailbox =
     mailboxes.find((mailbox) => mailbox.id === message.mailboxId) ?? selectedMailbox;
   const currentAccountName =
@@ -118,7 +130,6 @@ export default function MessageDetailPage() {
   const cloudAttachmentResult = extractCloudAttachments(
     bodyDisplay.latestContent,
   );
-
   return (
     <div className="h-full overflow-y-auto overscroll-contain scrollbar-gutter-stable">
       {message.direction === "inbound" && !message.read && (
@@ -151,18 +162,23 @@ export default function MessageDetailPage() {
           bodyHtml={body?.htmlBody}
         />
       </div>
+      <div className="px-6 pb-2 pt-4">
+        <h1 className="text-2xl text-neutral-900">
+          {message.subject ?? "(no subject)"}
+        </h1>
+      </div>
       <ConversationThread
         currentMessageId={message.id}
         position="before"
         messages={thread.messages}
         mailboxId={message.mailboxId}
         currentAccountName={currentAccountName}
+        ownAddress={ownAddress}
+        ownAddresses={ownAddresses}
+        expandedAll={threadExpanded}
+        onExpandedAllChange={setThreadExpanded}
       />
       <article className="px-6 py-4">
-        <h1 className="text-2xl text-neutral-900 mb-4">
-          {message.subject ?? "(no subject)"}
-        </h1>
-
         <div className="mb-6 flex items-start justify-between border-b border-neutral-100 pb-5">
           <div>
             <p className="text-sm text-neutral-900">
@@ -202,9 +218,17 @@ export default function MessageDetailPage() {
               </p>
             )}
           </div>
-          <p className="text-xs text-neutral-400">
-            {dayjs(message.createdAt).format("MMM DD, YYYY, hh:mmA")}
-          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <p className="text-xs">
+              {dayjs(message.createdAt).format("MMM DD, YYYY, hh:mmA")}
+            </p>
+            <ThreadMessageActions
+              message={currentThreadMessage}
+              mailboxId={message.mailboxId}
+              ownAddress={ownAddress}
+              ownAddresses={ownAddresses}
+            />
+          </div>
         </div>
         <div className="prose max-w-none text-neutral-900">
           {htmlBody ? (
@@ -286,6 +310,10 @@ export default function MessageDetailPage() {
         messages={thread.messages}
         mailboxId={message.mailboxId}
         currentAccountName={currentAccountName}
+        ownAddress={ownAddress}
+        ownAddresses={ownAddresses}
+        expandedAll={threadExpanded}
+        onExpandedAllChange={setThreadExpanded}
       />
       <MessageAttachmentViewer
         attachment={previewAttachment}

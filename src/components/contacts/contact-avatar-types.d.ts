@@ -1,0 +1,7 @@
+export type ContactAvatarProps = {
+	mailboxId: string | null;
+	address: string;
+	name: string;
+	hasManagedAvatar?: boolean;
+	className?: string;
+};

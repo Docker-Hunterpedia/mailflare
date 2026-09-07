@@ -5,7 +5,7 @@ import { getEnv } from "@/lib/cloudflare";
 import { normalizeEmailAddress } from "@/lib/email/address";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import type { ContactRequestInput } from "./types";
-import { getContactByEmail, saveManualContactName } from "./utils";
+import { getContactByEmail, saveManualContactName, toContactDetails } from "./utils";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -22,11 +22,12 @@ export async function GET(request: Request) {
 	if (!access?.canRead) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 	}
-	const contact = await getContactByEmail(db, access.mailbox.userId, email);
+	const contact = toContactDetails(await getContactByEmail(db, access.mailbox.userId, email));
 	return NextResponse.json({
 		contact: contact ?? {
 			email,
 			displayName: null,
+			hasAvatar: false,
 			source: null,
 			blocked: false,
 			lastSeenAt: null,
@@ -49,10 +50,10 @@ export async function PATCH(request: Request) {
 	if (!access?.canManage) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 	}
-	const contact = await saveManualContactName(db, {
+	const contact = toContactDetails(await saveManualContactName(db, {
 		userId: access.mailbox.userId,
 		email,
 		displayName,
-	});
+	}));
 	return NextResponse.json({ contact });
 }

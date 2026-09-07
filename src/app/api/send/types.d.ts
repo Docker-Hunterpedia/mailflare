@@ -15,4 +15,5 @@ export interface SendRequestPayload {
 	threadId?: string;
 	/** Draft whose stored attachments (e.g. forwarded files) should be sent along. */
 	draftId?: string;
+	scheduledAt?: string;
 }

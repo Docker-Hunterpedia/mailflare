@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { messageAttachments, messages } from "@/db/schema";
-import { getContactDisplayNameMap } from "@/lib/contacts/service";
+import { getContactAvatarMap, getContactDisplayNameMap } from "@/lib/contacts/service";
 import { getFirstEmailAddressEntry, normalizeEmailAddress } from "@/lib/email/address";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import type { SessionUser } from "@/lib/auth/types";
@@ -72,12 +72,18 @@ export async function getMessageThreadForUser(env: CloudflareEnv, user: SessionU
 		message.userId,
 		rows.flatMap((row) => [row.fromAddr, getFirstEmailAddressEntry(row.toAddr)]),
 	);
+	const contactAvatarMap = await getContactAvatarMap(
+		env,
+		message.userId,
+		rows.map((row) => row.fromAddr),
+	);
 
 	return {
 		threadId: message.threadId,
 		messages: rows.map((row) => ({
 			...withoutRawKey(row),
 			fromContactName: contactMap.get(normalizeEmailAddress(row.fromAddr)) ?? null,
+			fromContactHasAvatar: contactAvatarMap.get(normalizeEmailAddress(row.fromAddr)) ?? false,
 			toContactName: contactMap.get(normalizeEmailAddress(getFirstEmailAddressEntry(row.toAddr))) ?? null,
 			attachments: attachmentsByMessage.get(row.id) ?? [],
 		})),

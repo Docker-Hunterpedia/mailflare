@@ -8,6 +8,8 @@ export type RichTextEditorProps = {
 	disabled?: boolean;
 	placeholder?: string;
 	className?: string;
+	toolbarStart?: React.ReactNode;
+	toolbarEnd?: React.ReactNode;
 };
 
 export type ToolbarCommand = {

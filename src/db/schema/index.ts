@@ -142,6 +142,7 @@ export const contacts = sqliteTable(
 			.references(() => users.id, { onDelete: "cascade" }),
 		email: text("email").notNull(),
 		displayName: text("display_name"),
+		avatarKey: text("avatar_key"),
 		source: text("source", { enum: ["manual", "inbound", "outbound"] })
 			.notNull()
 			.default("inbound"),

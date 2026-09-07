@@ -32,7 +32,17 @@ const COMMANDS: ToolbarCommand[] = [
  * inline styles, lists, quotes and links, with pasted content flattened to
  * text so a message never carries another site's markup.
  */
-export function RichTextEditor({ id, value, onChange, quotedHtml, disabled, placeholder, className }: RichTextEditorProps) {
+export function RichTextEditor({
+	id,
+	value,
+	onChange,
+	quotedHtml,
+	disabled,
+	placeholder,
+	className,
+	toolbarStart,
+	toolbarEnd,
+}: RichTextEditorProps) {
 	const editorRef = useRef<HTMLDivElement | null>(null);
 	const [active, setActive] = useState<Record<string, boolean>>({});
 	const [linkOpen, setLinkOpen] = useState(false);
@@ -159,7 +169,9 @@ export function RichTextEditor({ id, value, onChange, quotedHtml, disabled, plac
 					</div>
 				)}
 			</div>
-			<div className="relative flex items-center gap-0.5 border-t border-neutral-100 px-2 py-1">
+			<div className="relative flex items-center gap-0.5 border-t border-neutral-100 px-4 py-3">
+				{toolbarStart}
+				{toolbarStart && <span className="mx-1 h-5 w-px bg-neutral-200" />}
 				{COMMANDS.map((item) => (
 					<Tooltip key={item.command} label={item.label}>
 						<button
@@ -202,6 +214,7 @@ export function RichTextEditor({ id, value, onChange, quotedHtml, disabled, plac
 						<RemoveFormatting className="h-4 w-4" />
 					</button>
 				</Tooltip>
+				{toolbarEnd}
 				{linkOpen && (
 					<form
 						className="absolute bottom-full left-2 z-10 mb-1 flex items-center gap-2 rounded-lg border border-neutral-200 bg-white p-2 shadow-lg"

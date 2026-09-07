@@ -8,12 +8,18 @@ export type ConversationThreadProps = {
 	messages: ThreadMessage[];
 	mailboxId: string | null;
 	currentAccountName?: string;
+	ownAddress?: string | null;
+	ownAddresses?: string[];
+	expandedAll: boolean;
+	onExpandedAllChange: (expanded: boolean) => void;
 };
 
 export type ConversationMessageCardProps = {
 	message: ThreadMessage;
 	mailboxId: string | null;
 	currentAccountName?: string;
+	ownAddress?: string | null;
+	ownAddresses?: string[];
 	defaultExpanded?: boolean;
 };
 

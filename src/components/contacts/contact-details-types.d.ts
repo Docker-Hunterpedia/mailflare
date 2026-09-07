@@ -1,6 +1,7 @@
 export type ContactDetailsRecord = {
 	email: string;
 	displayName: string | null;
+	hasAvatar: boolean;
 	source: "manual" | "inbound" | "outbound" | null;
 	blocked: boolean;
 	lastSeenAt: string | null;

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Forward, Minimize2, Paperclip, Reply, Send, X } from "lucide-react";
+import { FileText, Forward, Minimize2, Paperclip, Reply, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { authFetch } from "@/lib/auth/client";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
@@ -13,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { buildSendFormData, fetchDraft, formatAttachmentSize } from "./utils";
 import { RecipientInput } from "./recipient-input";
 import { RichTextEditor } from "./rich-text-editor";
+import { ScheduleSendMenu } from "./schedule-send-menu";
+import { formatScheduledSend } from "./schedule-send-utils";
 import {
 	applyMailboxSignatureHtml,
 	hasMeaningfulHtml,
@@ -53,6 +56,7 @@ export function ComposeForm({
 	const [toast, setToast] = useState<Toast>(null);
 	const [loading, setLoading] = useState(false);
 	const [loadingDraft, setLoadingDraft] = useState(false);
+	const [scheduledAt, setScheduledAt] = useState<Date | null>(null);
 	const [loadedDraftMailboxId, setLoadedDraftMailboxId] = useState<string | null>(null);
 	const [loadedDraftFrom, setLoadedDraftFrom] = useState<string | null>(null);
 	const [selectedFrom, setSelectedFrom] = useState("");
@@ -232,9 +236,10 @@ export function ComposeForm({
 				mailboxId: selectedMailbox?.id,
 				threading: threading ?? undefined,
 				draftId: storedAttachments.length > 0 ? draftId : null,
+				scheduledAt,
 			}),
 		});
-		const data = (await res.json()) as { messageId?: string; error?: string };
+		const data = (await res.json()) as { messageId?: string; scheduled?: boolean; error?: string };
 		setLoading(false);
 
 		if (!res.ok) {
@@ -259,7 +264,8 @@ export function ComposeForm({
 		setHtml(applyMailboxSignatureHtml("", "", selectedMailbox?.signature));
 		setQuotedHtml(null);
 		setAttachments([]);
-		setToast({ type: "success", message: "Message sent" });
+		setScheduledAt(null);
+		setToast({ type: "success", message: data.scheduled ? "Message scheduled" : "Message sent" });
 		window.dispatchEvent(new Event("mailflare:messages-changed"));
 	}
 
@@ -352,16 +358,17 @@ export function ComposeForm({
 						</div>
 					)}
 				</div>
-				<div className="border-b border-neutral-100 px-4 py-1">
-					<Label htmlFor={`${mode}-from`} className="sr-only">From</Label>
+				<div className="border-b border-neutral-100 px-4 py-1 flex flex-row items-center">
+					<Label htmlFor={`${mode}-from`} className="text-sm text-neutral-500">From</Label>
 					<Select
 						id={`${mode}-from`}
 						value={selectedMailbox && selectedFrom ? `${selectedMailbox.id}|${selectedFrom}` : ""}
 						onChange={(event) => selectSender(event.target.value)}
-						placeholder="Select a mailbox first"
+						// placeholder="Select a mailbox first"
 						required
 						disabled={loadingDraft || senderOptions.length === 0}
-						className="h-8 border-0 px-0 py-1 text-sm shadow-none focus-visible:ring-0"
+						className="h-8 px-0 py-1 text-sm shadow-none focus-visible:ring-0"
+						containerClassName="border-0 flex-1"
 					>
 						{senderOptions.length === 0 && <option value="">Select a mailbox first</option>}
 						{senderOptions.map(({ mailbox, address }) => (
@@ -434,6 +441,52 @@ export function ComposeForm({
 					quotedHtml={quotedHtml}
 					disabled={loadingDraft}
 					placeholder="Write your message"
+					toolbarStart={
+						<>
+							<div className="flex items-center">
+								<Button
+									type="submit"
+									size="sm"
+									disabled={loading || loadingDraft || !fromAddr}
+									className="rounded-r-none px-4"
+								>
+									{loading ? "Sending" : scheduledAt ? "Schedule" : "Send"}
+								</Button>
+								<ScheduleSendMenu
+									disabled={loading || loadingDraft || !fromAddr}
+									value={scheduledAt}
+									onChange={setScheduledAt}
+								/>
+							</div>
+						</>
+					}
+					toolbarEnd={
+						<>
+							{/* <span className="mx-1 h-5 w-px bg-neutral-200" /> */}
+							<Input
+								ref={attachmentInput}
+								type="file"
+								multiple
+								className="hidden"
+								onChange={(event) => addAttachments(event.target.files)}
+							/>
+							<Tooltip label="Attach files">
+								<button
+									type="button"
+									aria-label="Attach files"
+									onClick={() => attachmentInput.current?.click()}
+									disabled={loading || loadingDraft}
+									className="rounded-md p-1.5 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 disabled:pointer-events-none disabled:opacity-50"
+								>
+									<Paperclip className="h-4 w-4" />
+								</button>
+							</Tooltip>
+							<span className="flex-1" />
+							<p className="min-w-0 truncate text-xs text-neutral-500">
+								{scheduledAt ? `Sends ${formatScheduledSend(scheduledAt)}` : draftId ? "Saved to drafts" : "Autosaves as draft"}
+							</p>
+						</>
+					}
 				/>
 				{(attachments.length > 0 || storedAttachments.length > 0) && (
 					<div className="flex flex-wrap gap-2 border-t border-neutral-100 px-4 py-3">
@@ -482,31 +535,6 @@ export function ComposeForm({
 						))}
 					</div>
 				)}
-				<div className="flex items-center gap-3 border-t border-neutral-100 px-4 py-3">
-					<Input
-						ref={attachmentInput}
-						type="file"
-						multiple
-						className="hidden"
-						onChange={(event) => addAttachments(event.target.files)}
-					/>
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						onClick={() => attachmentInput.current?.click()}
-						disabled={loading || loadingDraft}
-					>
-						<Paperclip className="h-4 w-4" />
-						Attach
-					</Button>
-					<span className="flex-1" />
-					<p className="text-xs text-neutral-500">{draftId ? "Saved to drafts" : "Autosaves as draft"}</p>
-					<Button type="submit" disabled={loading || loadingDraft || !fromAddr} className="rounded-full px-5">
-						<Send className="h-4 w-4" />
-						{loading ? "Sending" : "Send"}
-					</Button>
-				</div>
 			</form>
 		</>
 	);

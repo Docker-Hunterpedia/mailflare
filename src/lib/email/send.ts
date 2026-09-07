@@ -9,7 +9,7 @@ import { getAuthorizedSenderAddress } from "@/lib/email/sender";
 import { getEmailAddressList, joinEmailAddressList, splitEmailAddressList } from "@/lib/email/address";
 import { formatMessageIdHeader, normalizeMessageId, parseMessageIdList } from "@/lib/email/threading";
 import { createAuditLog } from "@/lib/mailboxes/audit";
-import { storeMessageAttachments, validateAttachments } from "@/lib/email/attachments";
+import { loadMessageAttachmentContents, storeMessageAttachments, validateAttachments } from "@/lib/email/attachments";
 import type { AttachmentContent } from "@/lib/email/attachment-types";
 
 export type SendEmailInput = {
@@ -31,9 +31,25 @@ export type SendEmailInput = {
 	threadId?: string | null;
 	mailboxId: string;
 	attachments?: AttachmentContent[];
+	/** Future delivery time. Values at or before the current time send immediately. */
+	scheduledAt?: string | Date;
 };
 
 const MAX_RECIPIENTS = 50;
+const MAX_QUEUE_DELAY_SECONDS = 24 * 60 * 60;
+
+type PreparedDelivery = {
+	input: SendEmailInput;
+	messageId: string;
+	jobId: string;
+	from: string;
+	mailboxId: string;
+	to: string[];
+	cc: string[];
+	bcc: string[];
+	headers: Record<string, string>;
+	attachments: AttachmentContent[];
+};
 
 function toRecipientList(value: string | string[] | undefined): string[] {
 	const entries = Array.isArray(value) ? value : splitEmailAddressList(value);
@@ -48,7 +64,10 @@ function toRecipientList(value: string | string[] | undefined): string[] {
 	return result;
 }
 
-export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Promise<{ messageId: string }> {
+export async function sendEmail(
+	env: CloudflareEnv,
+	input: SendEmailInput,
+): Promise<{ messageId: string; scheduled?: boolean }> {
 	const db = getDb(env);
 	const sender = await getAuthorizedSenderAddress(env, input);
 	const attachments = input.attachments ?? [];
@@ -74,6 +93,10 @@ export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Prom
 	if (references.length > 0) headers.References = formatMessageIdHeader(references);
 
 	const messageId = newId("msg");
+	const requestedSchedule = input.scheduledAt ? new Date(input.scheduledAt) : null;
+	const scheduledAt = requestedSchedule && requestedSchedule.getTime() > Date.now()
+		? requestedSchedule
+		: null;
 	const snippet = buildSnippet(input.text ?? null, input.html ?? null);
 	const toAddr = joinEmailAddressList(to);
 
@@ -117,11 +140,37 @@ export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Prom
 			mailboxId: sender.mailboxId,
 			attachments: attachments.map(({ content: _content, ...attachment }) => attachment),
 		}),
+		scheduledAt,
 	});
 
+	const delivery: PreparedDelivery = {
+		input: { ...input, attachments: undefined },
+		messageId,
+		jobId,
+		from: sender.fromAddr,
+		mailboxId: sender.mailboxId,
+		to,
+		cc,
+		bcc,
+		headers,
+		attachments,
+	};
+	if (scheduledAt) {
+		await enqueueScheduledDelivery(env, delivery, scheduledAt);
+		return { messageId, scheduled: true };
+	}
+
+	await deliverEmail(env, delivery);
+	return { messageId };
+}
+
+async function deliverEmail(env: CloudflareEnv, delivery: PreparedDelivery): Promise<void> {
+	const { input, messageId, jobId, from, mailboxId, to, cc, bcc, headers, attachments } = delivery;
+	const db = getDb(env);
+	const toAddr = joinEmailAddressList(to);
 	try {
 		const response = await env.EMAIL.send({
-			from: sender.fromAddr,
+			from,
 			to,
 			...(cc.length ? { cc } : {}),
 			...(bcc.length ? { bcc } : {}),
@@ -167,13 +216,11 @@ export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Prom
 		});
 		await createAuditLog(env, {
 			actorUserId: input.userId,
-			mailboxId: sender.mailboxId,
+			mailboxId,
 			messageId,
 			action: "email.send",
 			metadata: { to: toAddr, cc: cc.length ? joinEmailAddressList(cc) : undefined, subject: input.subject },
 		});
-
-		return { messageId };
 	} catch (err) {
 		const error = err instanceof Error ? err.message : "Send failed";
 		await db.update(messages).set({ status: "failed" }).where(eq(messages.id, messageId));
@@ -186,11 +233,72 @@ export async function sendEmail(env: CloudflareEnv, input: SendEmailInput): Prom
 	}
 }
 
-export type OutboundQueueMessage = SendEmailInput & { jobId?: string };
+export type OutboundQueueMessage = {
+	kind: "email.scheduled";
+	jobId: string;
+	messageId: string;
+	scheduledAt: string;
+};
+
+async function enqueueScheduledDelivery(
+	env: CloudflareEnv,
+	delivery: PreparedDelivery,
+	scheduledAt: Date,
+): Promise<void> {
+	const delaySeconds = Math.min(
+		MAX_QUEUE_DELAY_SECONDS,
+		Math.max(1, Math.ceil((scheduledAt.getTime() - Date.now()) / 1000)),
+	);
+	await env.OUTBOUND_QUEUE.send(
+		{
+			kind: "email.scheduled",
+			jobId: delivery.jobId,
+			messageId: delivery.messageId,
+			scheduledAt: scheduledAt.toISOString(),
+		},
+		{ delaySeconds },
+	);
+}
 
 export async function processOutboundQueue(
 	env: CloudflareEnv,
 	payload: OutboundQueueMessage,
 ): Promise<void> {
-	await sendEmail(env, payload);
+	const db = getDb(env);
+	const [job] = await db
+		.select({ status: outboundJobs.status, payload: outboundJobs.payload })
+		.from(outboundJobs)
+		.where(eq(outboundJobs.id, payload.jobId))
+		.limit(1);
+	if (!job || job.status !== "queued") return;
+	const scheduledAt = new Date(payload.scheduledAt);
+	const input = JSON.parse(job.payload) as SendEmailInput;
+	const to = toRecipientList(input.to);
+	const cc = toRecipientList(input.cc);
+	const bcc = toRecipientList(input.bcc);
+	const inReplyTo = normalizeMessageId(input.inReplyTo);
+	const references = Array.isArray(input.references)
+		? input.references.map((id) => normalizeMessageId(id)).filter((id): id is string => !!id)
+		: parseMessageIdList(input.references);
+	const headers: Record<string, string> = { ...input.headers };
+	if (inReplyTo) headers["In-Reply-To"] = `<${inReplyTo}>`;
+	if (references.length > 0) headers.References = formatMessageIdHeader(references);
+	const delivery: PreparedDelivery = {
+		input,
+		messageId: payload.messageId,
+		jobId: payload.jobId,
+		from: input.from,
+		mailboxId: input.mailboxId,
+		to,
+		cc,
+		bcc,
+		headers,
+		attachments: [],
+	};
+	if (scheduledAt.getTime() > Date.now()) {
+		await enqueueScheduledDelivery(env, delivery, scheduledAt);
+		return;
+	}
+	delivery.attachments = await loadMessageAttachmentContents(env, payload.messageId);
+	await deliverEmail(env, delivery);
 }

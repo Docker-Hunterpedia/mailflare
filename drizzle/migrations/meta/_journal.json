@@ -204,6 +204,20 @@
       "when": 1788850800000,
       "tag": "0028_add_keyboard_shortcuts_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1788850800001,
+      "tag": "0029_add_spam_protection",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1788850800002,
+      "tag": "0030_add_message_search_index",
+      "breakpoints": true
     }
   ]
 }

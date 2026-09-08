@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, useState, useMemo } from "react";
+import { createElement, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, Ban, BellOff, Forward, Mail, MailOpen, MoreVertical, Reply, ReplyAll, ShieldAlert, Trash2 } from "lucide-react";
 import { useCompose } from "@/components/compose/compose-context";
@@ -48,7 +48,7 @@ export function MessageActions({
 	const [error, setError] = useState<string | null>(null);
 	const [moreOpen, setMoreOpen] = useState(false);
 
-	async function runAction(action: BulkMessageAction) {
+	const runAction = useCallback(async (action: BulkMessageAction) => {
 		setMoreOpen(false);
 		setPendingAction(action);
 		setError(null);
@@ -62,7 +62,41 @@ export function MessageActions({
 		} finally {
 			setPendingAction(null);
 		}
-	}
+	}, [messageId, direction, router]);
+
+	const replyable = useMemo(() => message ?? {
+		direction,
+		fromAddr: senderAddress,
+		toAddr: "",
+		ccAddr: null,
+		providerMessageId: null,
+		references: null,
+		threadId: null,
+	}, [message, direction, senderAddress]);
+	const canReplyAll = hasAdditionalRecipients(replyable, ownAddresses);
+
+	const handleReply = useCallback(async (mode: ReplyMode) => {
+		setPendingAction(mode);
+		setError(null);
+		try {
+			const draftId = await createReplyDraft({
+				mailboxId,
+				senderAddress,
+				ownAddress,
+				subject,
+				bodyText,
+				bodyHtml,
+				sentAt: messageMeta?.createdAt,
+				recipients: getReplyRecipients(replyable, ownAddresses, mode),
+				threading: getReplyThreading(replyable),
+			});
+			openDraftComposer(draftId);
+		} catch (replyError) {
+			setError(replyError instanceof Error ? replyError.message : "Could not start reply");
+		} finally {
+			setPendingAction(null);
+		}
+	}, [mailboxId, senderAddress, ownAddress, subject, bodyText, bodyHtml, messageMeta?.createdAt, replyable, ownAddresses, openDraftComposer]);
 
 	const shortcuts = useMemo(
 		() => [
@@ -111,7 +145,7 @@ export function MessageActions({
 				action: () => router.back(),
 			},
 		],
-		[status, direction, runAction, router]
+		[status, direction, runAction, handleReply, router]
 	);
 
 	useHotkeys(shortcuts);
@@ -141,40 +175,6 @@ export function MessageActions({
 		}
 	}
 
-	const replyable = message ?? {
-		direction,
-		fromAddr: senderAddress,
-		toAddr: "",
-		ccAddr: null,
-		providerMessageId: null,
-		references: null,
-		threadId: null,
-	};
-	const canReplyAll = hasAdditionalRecipients(replyable, ownAddresses);
-
-	async function handleReply(mode: ReplyMode) {
-		setPendingAction(mode);
-		setError(null);
-		try {
-			const draftId = await createReplyDraft({
-				mailboxId,
-				senderAddress,
-				ownAddress,
-				subject,
-				bodyText,
-				bodyHtml,
-				sentAt: messageMeta?.createdAt,
-				recipients: getReplyRecipients(replyable, ownAddresses, mode),
-				threading: getReplyThreading(replyable),
-			});
-			openDraftComposer(draftId);
-		} catch (replyError) {
-			setError(replyError instanceof Error ? replyError.message : "Could not start reply");
-		} finally {
-			setPendingAction(null);
-		}
-	}
-
 	async function handleForward() {
 		if (!message || !messageMeta) return;
 		setPendingAction("forward");
@@ -194,7 +194,6 @@ export function MessageActions({
 			setPendingAction(null);
 		}
 	}
-
 	async function onBlockContact() {
 		setMoreOpen(false);
 		setError(null);

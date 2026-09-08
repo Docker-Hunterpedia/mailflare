@@ -10,23 +10,21 @@ interface CommandPaletteProps {
   commands: CommandItem[];
 }
 
-export function CommandPalette({
-  isOpen,
+function CommandPaletteDialog({
   onClose,
   commands,
-}: CommandPaletteProps) {
+}: {
+  onClose: () => void;
+  commands: CommandItem[];
+}) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setQuery("");
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [isOpen]);
+    inputRef.current?.focus();
+  }, []);
 
   const filteredCommands = useMemo(() => {
     if (!query.trim()) return commands;
@@ -42,9 +40,10 @@ export function CommandPalette({
     });
   }, [commands, query]);
 
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [filteredCommands]);
+  const activeIndex = Math.min(
+    selectedIndex,
+    Math.max(0, filteredCommands.length - 1)
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
@@ -57,8 +56,8 @@ export function CommandPalette({
       );
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (filteredCommands[selectedIndex]) {
-        filteredCommands[selectedIndex].perform();
+      if (filteredCommands[activeIndex]) {
+        filteredCommands[activeIndex].perform();
         onClose();
       }
     } else if (e.key === "Escape") {
@@ -66,8 +65,6 @@ export function CommandPalette({
       onClose();
     }
   };
-
-  if (!isOpen) return null;
 
   const grouped = filteredCommands.reduce((acc, item) => {
     if (!acc[item.category]) acc[item.category] = [];
@@ -95,11 +92,14 @@ export function CommandPalette({
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedIndex(0);
+            }}
             placeholder="Type a command or search actions..."
             className="w-full bg-transparent text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 text-[15px] focus:outline-none"
           />
-          <kbd className="px-2 py-0.5 text-xs font-semibold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-xs">
+          <kbd className="px-2 py-0.5 text-xs font-semibold text-neutral-400 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-2xs">
             ESC
           </kbd>
         </div>
@@ -120,7 +120,7 @@ export function CommandPalette({
                   {category}
                 </div>
                 {items.map((item) => {
-                  const isCurrent = flatIndex === selectedIndex;
+                  const isCurrent = flatIndex === activeIndex;
                   const itemIndex = flatIndex;
                   flatIndex++;
                   const Icon = item.icon;
@@ -203,4 +203,13 @@ export function CommandPalette({
       </div>
     </div>
   );
+}
+
+export function CommandPalette({
+  isOpen,
+  onClose,
+  commands,
+}: CommandPaletteProps) {
+  if (!isOpen) return null;
+  return <CommandPaletteDialog onClose={onClose} commands={commands} />;
 }

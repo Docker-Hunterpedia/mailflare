@@ -25,7 +25,7 @@ export function SidebarFooter() {
           ?
         </kbd>
       </button>
-      <p className="text-[11px] text-neutral-400">
+      <p className="px-1 text-[11px] text-neutral-400">
         Powered by{" "}
         <a
           href={`https://mailflare.co/?ref=${typeof window !== "undefined" ? location.hostname : ""}&v=${packageJson.version}`}

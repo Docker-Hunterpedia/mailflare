@@ -54,7 +54,7 @@ export function useHotkeys(
   options: UseHotkeysOptions = { enabled: true }
 ) {
   const sequenceBufferRef = useRef<string[]>([]);
-  const sequenceTimerRef = useRef<number | null>(null);
+  const sequenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shortcutsRef = useRef<ShortcutDefinition[]>(shortcuts);
 
   useEffect(() => {
@@ -96,10 +96,10 @@ export function useHotkeys(
       sequenceBufferRef.current.push(key);
 
       if (sequenceTimerRef.current) {
-        window.clearTimeout(sequenceTimerRef.current);
+        clearTimeout(sequenceTimerRef.current);
       }
 
-      sequenceTimerRef.current = window.setTimeout(() => {
+      sequenceTimerRef.current = setTimeout(() => {
         sequenceBufferRef.current = [];
       }, 800);
 
@@ -135,7 +135,7 @@ export function useHotkeys(
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       if (sequenceTimerRef.current) {
-        window.clearTimeout(sequenceTimerRef.current);
+        clearTimeout(sequenceTimerRef.current);
       }
     };
   }, [options.enabled]);

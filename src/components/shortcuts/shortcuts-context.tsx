@@ -12,12 +12,10 @@ import {
   ShieldAlert,
   Trash2,
   MailPlus,
-  Search,
   Settings,
   HelpCircle,
 } from "lucide-react";
 import { useCompose } from "@/components/compose/compose-context";
-import { useMailSearch } from "@/components/mail-search/mail-search-context";
 import type { ShortcutDefinition, CommandItem } from "./types";
 import { useHotkeys } from "./use-hotkeys";
 import { CommandPalette } from "./command-palette";
@@ -55,7 +53,6 @@ export function ShortcutsProvider({
 }) {
   const router = useRouter();
   const { openComposer } = useCompose();
-  const { setQuery } = useMailSearch();
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);

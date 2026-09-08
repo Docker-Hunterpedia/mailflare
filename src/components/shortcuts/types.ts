@@ -1,3 +1,5 @@
+import type React from "react";
+
 export type ModifierKey = 'ctrl' | 'meta' | 'alt' | 'shift';
 
 export interface ShortcutDefinition {

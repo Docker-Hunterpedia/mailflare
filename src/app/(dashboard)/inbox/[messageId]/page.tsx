@@ -17,6 +17,7 @@ import { usePageLoading } from "@/components/page-loading";
 import { PreviousMessage } from "@/components/previous-message";
 import { ConversationThread } from "@/components/messages/conversation-thread";
 import { ThreadMessageActions } from "@/components/messages/thread-message-actions";
+import { SpamScoreDetails } from "@/components/messages/spam-score-details";
 import { useMessageThread } from "@/components/messages/use-message-thread";
 import { useLatestMessagesFirst } from "@/components/messages/use-latest-messages-first";
 import { getMessageBackHref } from "@/components/message-actions/utils";
@@ -168,6 +169,12 @@ export default function MessageDetailPage() {
           {message.subject ?? "(no subject)"}
         </h1>
       </div>
+      <SpamScoreDetails
+        score={message.spamScore}
+        verdict={message.spamVerdict}
+        signals={message.spamSignals}
+        analysisError={message.spamAnalysisError}
+      />
       <ConversationThread
         currentMessageId={message.id}
         position={latestMessagesFirst ? "after" : "before"}

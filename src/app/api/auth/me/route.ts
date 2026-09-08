@@ -33,6 +33,7 @@ export async function GET(request: Request) {
 			role: user.role,
 			canManageMailboxes: user.canManageMailboxes,
 			keyboardShortcutsEnabled: user.keyboardShortcutsEnabled,
+			spamProtectionEnabled: user.spamProtectionEnabled,
 			hasAvatar: !!user.avatarKey,
 		},
 		hasMailboxes,

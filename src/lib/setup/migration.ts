@@ -28,10 +28,11 @@ const MIGRATION_NAMES = [
 	"0026_add_contact_avatars.sql",
 	"0027_add_domain_sending_intent.sql",
 	"0028_add_keyboard_shortcuts_setting.sql",
+	"0029_add_spam_protection.sql",
 ];
 
 const INITIAL_SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS users (id text PRIMARY KEY NOT NULL, email text NOT NULL UNIQUE, reset_email text, forwarding_email text, password_hash text NOT NULL, name text NOT NULL, avatar_key text, role text DEFAULT 'user' NOT NULL, disabled integer DEFAULT false NOT NULL, can_manage_mailboxes integer DEFAULT false NOT NULL, keyboard_shortcuts_enabled integer DEFAULT true NOT NULL, created_by_user_id text REFERENCES users(id) ON DELETE set null, created_at integer NOT NULL);
+CREATE TABLE IF NOT EXISTS users (id text PRIMARY KEY NOT NULL, email text NOT NULL UNIQUE, reset_email text, forwarding_email text, password_hash text NOT NULL, name text NOT NULL, avatar_key text, role text DEFAULT 'user' NOT NULL, disabled integer DEFAULT false NOT NULL, can_manage_mailboxes integer DEFAULT false NOT NULL, keyboard_shortcuts_enabled integer DEFAULT true NOT NULL, spam_protection_enabled integer DEFAULT true NOT NULL, created_by_user_id text REFERENCES users(id) ON DELETE set null, created_at integer NOT NULL);
 CREATE INDEX IF NOT EXISTS users_created_by_idx ON users(created_by_user_id);
 CREATE TABLE IF NOT EXISTS domains (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, hostname text NOT NULL, zone_id text NOT NULL, status text DEFAULT 'pending' NOT NULL, routing_status text, sending_subdomain_tag text, sending_requested integer DEFAULT false NOT NULL, sending_enabled integer DEFAULT false NOT NULL, routing_enabled integer DEFAULT false NOT NULL, created_at integer NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS domains_hostname_idx ON domains(hostname);
@@ -56,12 +57,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS folders_mailbox_name_idx ON folders(mailbox_id
 CREATE INDEX IF NOT EXISTS folders_user_idx ON folders(user_id);
 CREATE INDEX IF NOT EXISTS folders_mailbox_idx ON folders(mailbox_id);
 CREATE TABLE IF NOT EXISTS api_keys (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, name text NOT NULL, prefix text NOT NULL, key_hash text NOT NULL, scopes text NOT NULL, created_at integer NOT NULL, last_used_at integer);
-CREATE TABLE IF NOT EXISTS messages (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, mailbox_id text REFERENCES mailboxes(id) ON DELETE set null, direction text NOT NULL, provider_message_id text, folder_id text REFERENCES folders(id) ON DELETE set null, from_addr text NOT NULL, to_addr text NOT NULL, cc_addr text, bcc_addr text, subject text, snippet text, text_body text, html_body text, raw_r2_key text, status text DEFAULT 'received' NOT NULL, read integer DEFAULT false NOT NULL, starred integer DEFAULT false NOT NULL, snoozed_until integer, thread_id text, in_reply_to text, references_header text, created_at integer NOT NULL);
+CREATE TABLE IF NOT EXISTS messages (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, mailbox_id text REFERENCES mailboxes(id) ON DELETE set null, direction text NOT NULL, provider_message_id text, folder_id text REFERENCES folders(id) ON DELETE set null, from_addr text NOT NULL, to_addr text NOT NULL, cc_addr text, bcc_addr text, subject text, snippet text, text_body text, html_body text, raw_r2_key text, status text DEFAULT 'received' NOT NULL, read integer DEFAULT false NOT NULL, starred integer DEFAULT false NOT NULL, snoozed_until integer, thread_id text, in_reply_to text, references_header text, spam_score integer, spam_verdict text, spam_signals text, spam_analyzed_at integer, spam_analysis_error text, created_at integer NOT NULL);
 CREATE INDEX IF NOT EXISTS messages_user_created_idx ON messages(user_id, created_at);
 CREATE INDEX IF NOT EXISTS messages_mailbox_idx ON messages(mailbox_id);
 CREATE INDEX IF NOT EXISTS messages_folder_idx ON messages(folder_id);
 CREATE INDEX IF NOT EXISTS messages_thread_idx ON messages(mailbox_id, thread_id);
 CREATE INDEX IF NOT EXISTS messages_provider_message_idx ON messages(mailbox_id, provider_message_id);
+CREATE INDEX IF NOT EXISTS messages_raw_r2_key_idx ON messages(raw_r2_key);
+CREATE TABLE IF NOT EXISTS spam_token_stats (mailbox_id text NOT NULL REFERENCES mailboxes(id) ON DELETE cascade, token text NOT NULL, spam_count integer DEFAULT 0 NOT NULL, ham_count integer DEFAULT 0 NOT NULL, updated_at integer NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS spam_token_stats_mailbox_token_idx ON spam_token_stats(mailbox_id, token);
+CREATE INDEX IF NOT EXISTS spam_token_stats_mailbox_idx ON spam_token_stats(mailbox_id);
+CREATE TABLE IF NOT EXISTS spam_reputation (mailbox_id text NOT NULL REFERENCES mailboxes(id) ON DELETE cascade, type text NOT NULL, key text NOT NULL, messages_seen integer DEFAULT 0 NOT NULL, spam_count integer DEFAULT 0 NOT NULL, ham_count integer DEFAULT 0 NOT NULL, first_seen_at integer NOT NULL, last_seen_at integer NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS spam_reputation_mailbox_type_key_idx ON spam_reputation(mailbox_id, type, key);
+CREATE INDEX IF NOT EXISTS spam_reputation_mailbox_idx ON spam_reputation(mailbox_id);
+CREATE TABLE IF NOT EXISTS spam_feedback (message_id text PRIMARY KEY NOT NULL REFERENCES messages(id) ON DELETE cascade, mailbox_id text NOT NULL REFERENCES mailboxes(id) ON DELETE cascade, actor_user_id text REFERENCES users(id) ON DELETE set null, classification text NOT NULL, training_tokens text NOT NULL, reputation_keys text NOT NULL, tokenizer_version integer DEFAULT 1 NOT NULL, created_at integer NOT NULL, updated_at integer NOT NULL);
+CREATE INDEX IF NOT EXISTS spam_feedback_mailbox_idx ON spam_feedback(mailbox_id);
 CREATE TABLE IF NOT EXISTS message_attachments (id text PRIMARY KEY NOT NULL, message_id text NOT NULL REFERENCES messages(id) ON DELETE cascade, filename text NOT NULL, content_type text NOT NULL, size integer NOT NULL, disposition text DEFAULT 'attachment' NOT NULL, content_id text, r2_key text NOT NULL UNIQUE, created_at integer NOT NULL);
 CREATE INDEX IF NOT EXISTS message_attachments_message_idx ON message_attachments(message_id);
 CREATE TABLE IF NOT EXISTS outbound_jobs (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, message_id text REFERENCES messages(id) ON DELETE set null, status text DEFAULT 'queued' NOT NULL, payload text NOT NULL, error text, scheduled_at integer, created_at integer NOT NULL, updated_at integer NOT NULL);

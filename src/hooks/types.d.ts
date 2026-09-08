@@ -30,6 +30,11 @@ export type Message = {
 	threadId: string | null;
 	inReplyTo?: string | null;
 	references?: string | null;
+	spamScore?: number | null;
+	spamVerdict?: "inbox" | "suspicious" | "spam" | null;
+	spamSignals?: string | null;
+	spamAnalyzedAt?: string | null;
+	spamAnalysisError?: string | null;
 	/** Messages in the same conversation (excluding drafts and trash), when the list API computed it. */
 	threadCount?: number;
 	/** Unread messages in the conversation; zero means the grouped thread is read. */

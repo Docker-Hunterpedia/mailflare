@@ -105,8 +105,8 @@ export function getMoveMessageActions(
   direction: "inbound" | "outbound",
 ): MoveMessageActionItem[] {
   const actions: MoveMessageActionItem[] = [];
-  if (status === "archived" && direction === "inbound") {
-    actions.push({ action: "inbox", label: "Inbox", icon: InboxIcon });
+  if ((status === "archived" || status === "spam") && direction === "inbound") {
+    actions.push({ action: "inbox", label: status === "spam" ? "Not spam" : "Inbox", icon: InboxIcon });
   }
   if (status !== "archived")
     actions.push({ action: "archive", label: "Archived", icon: ArchiveIcon });

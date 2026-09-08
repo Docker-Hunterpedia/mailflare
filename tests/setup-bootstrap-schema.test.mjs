@@ -27,6 +27,7 @@ test("bootstrap records migrations represented in the current schema so later de
 		"0021_add_mailbox_signature.sql",
 		"0022_add_mailbox_auto_reply.sql",
 		"0027_add_domain_sending_intent.sql",
+		"0029_add_spam_protection.sql",
 	]) {
 		assert.ok(names.includes(name), `MIGRATION_NAMES is missing ${name}`);
 	}
@@ -42,6 +43,10 @@ test("fresh bootstrap schema accepts the current Drizzle mailbox and license ins
 	assert.match(mailboxCreate[1], /\bauto_reply_body\b/);
 	assert.match(sql, /CREATE TABLE IF NOT EXISTS license_settings \(/);
 	assert.match(sql, /CREATE TABLE IF NOT EXISTS auto_reply_deliveries \(/);
+	assert.match(sql, /\bspam_protection_enabled\b/);
+	assert.match(sql, /CREATE TABLE IF NOT EXISTS spam_token_stats \(/);
+	assert.match(sql, /CREATE TABLE IF NOT EXISTS spam_reputation \(/);
+	assert.match(sql, /CREATE TABLE IF NOT EXISTS spam_feedback \(/);
 	const domainCreate = sql.match(/CREATE TABLE IF NOT EXISTS domains \(([\s\S]*?)\);/);
 	assert.ok(domainCreate, "domains CREATE TABLE not found");
 	assert.match(domainCreate[1], /\bsending_requested\b/);

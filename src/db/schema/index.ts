@@ -13,6 +13,7 @@ export const users = sqliteTable("users", {
 	disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
 	canManageMailboxes: integer("can_manage_mailboxes", { mode: "boolean" }).notNull().default(false),
 	keyboardShortcutsEnabled: integer("keyboard_shortcuts_enabled", { mode: "boolean" }).notNull().default(true),
+	spamProtectionEnabled: integer("spam_protection_enabled", { mode: "boolean" }).notNull().default(true),
 	createdByUserId: text("created_by_user_id").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
@@ -227,6 +228,11 @@ export const messages = sqliteTable(
 		// and so outgoing replies can carry them on to the recipient's client.
 		inReplyTo: text("in_reply_to"),
 		references: text("references_header"),
+		spamScore: integer("spam_score"),
+		spamVerdict: text("spam_verdict", { enum: ["inbox", "suspicious", "spam"] }),
+		spamSignals: text("spam_signals"),
+		spamAnalyzedAt: integer("spam_analyzed_at", { mode: "timestamp" }),
+		spamAnalysisError: text("spam_analysis_error"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -237,7 +243,57 @@ export const messages = sqliteTable(
 		index("messages_folder_idx").on(t.folderId),
 		index("messages_thread_idx").on(t.mailboxId, t.threadId),
 		index("messages_provider_message_idx").on(t.mailboxId, t.providerMessageId),
+		index("messages_raw_r2_key_idx").on(t.rawR2Key),
 	],
+);
+
+export const spamTokenStats = sqliteTable(
+	"spam_token_stats",
+	{
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		token: text("token").notNull(),
+		spamCount: integer("spam_count").notNull().default(0),
+		hamCount: integer("ham_count").notNull().default(0),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("spam_token_stats_mailbox_token_idx").on(t.mailboxId, t.token),
+		index("spam_token_stats_mailbox_idx").on(t.mailboxId),
+	],
+);
+
+export const spamReputation = sqliteTable(
+	"spam_reputation",
+	{
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		type: text("type", { enum: ["email", "domain", "fingerprint"] }).notNull(),
+		key: text("key").notNull(),
+		messagesSeen: integer("messages_seen").notNull().default(0),
+		spamCount: integer("spam_count").notNull().default(0),
+		hamCount: integer("ham_count").notNull().default(0),
+		firstSeenAt: integer("first_seen_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [
+		uniqueIndex("spam_reputation_mailbox_type_key_idx").on(t.mailboxId, t.type, t.key),
+		index("spam_reputation_mailbox_idx").on(t.mailboxId),
+	],
+);
+
+export const spamFeedback = sqliteTable(
+	"spam_feedback",
+	{
+		messageId: text("message_id").primaryKey().references(() => messages.id, { onDelete: "cascade" }),
+		mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+		actorUserId: text("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+		classification: text("classification", { enum: ["spam", "ham"] }).notNull(),
+		trainingTokens: text("training_tokens").notNull(),
+		reputationKeys: text("reputation_keys").notNull(),
+		tokenizerVersion: integer("tokenizer_version").notNull().default(1),
+		createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+		updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+	},
+	(t) => [index("spam_feedback_mailbox_idx").on(t.mailboxId)],
 );
 
 export const messageAttachments = sqliteTable(
@@ -512,6 +568,9 @@ export const schema = {
 	folders,
 	apiKeys,
 	messages,
+	spamTokenStats,
+	spamReputation,
+	spamFeedback,
 	messageAttachments,
 	outboundJobs,
 	emailTemplates,

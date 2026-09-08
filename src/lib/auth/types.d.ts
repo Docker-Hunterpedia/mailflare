@@ -11,6 +11,7 @@ export type SessionUser = {
 	disabled: boolean;
 	canManageMailboxes: boolean;
 	keyboardShortcutsEnabled: boolean;
+	spamProtectionEnabled: boolean;
 	createdByUserId: string | null;
 	createdAt: Date;
 };

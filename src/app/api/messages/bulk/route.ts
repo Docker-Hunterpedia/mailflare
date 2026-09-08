@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth/cookies";
 import { getEnv } from "@/lib/cloudflare";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import { createAuditLog } from "@/lib/mailboxes/audit";
+import { applySpamFeedback } from "@/lib/spam/feedback";
 import type { BulkMessagePayload } from "./types";
 import {
 	getReadValueForBulkAction,
@@ -75,6 +76,17 @@ export async function POST(request: Request) {
 
 	if (allowedMessageIds.length === 0) {
 		return NextResponse.json({ error: "No accessible messages" }, { status: 404 });
+	}
+	if (payload.action === "spam") {
+		for (const messageId of allowedMessageIds) await applySpamFeedback(env, user, messageId, "spam");
+		return NextResponse.json({ ok: true });
+	}
+	if (payload.action === "inbox") {
+		const spamMessageIds = selectedMessages.filter((message) => message.status === "spam" && allowedMessageIds.includes(message.id)).map((message) => message.id);
+		const normalMessageIds = allowedMessageIds.filter((messageId) => !spamMessageIds.includes(messageId));
+		for (const messageId of spamMessageIds) await applySpamFeedback(env, user, messageId, "ham");
+		if (normalMessageIds.length) await db.update(messages).set(values).where(inArray(messages.id, normalMessageIds));
+		return NextResponse.json({ ok: true });
 	}
 
 	await db.update(messages).set(values).where(inArray(messages.id, allowedMessageIds));

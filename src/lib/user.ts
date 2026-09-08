@@ -4,6 +4,7 @@ import { messages, domains, mailboxes } from "@/db/schema";
 import { getMailboxAccessLevel, listAccessibleMailboxIds } from "@/lib/mailboxes/access";
 import { createAuditLog } from "@/lib/mailboxes/audit";
 import type { SessionUser } from "@/lib/auth/types";
+import { applySpamFeedback } from "@/lib/spam/feedback";
 
 export async function listMessagesForUser(
 	env: CloudflareEnv,
@@ -105,6 +106,8 @@ export async function updateMessageStatusForUser(
 	if (!message?.mailboxId) return false;
 	const access = await getMailboxAccessLevel(db, user, message.mailboxId);
 	if (!access?.canManage) return false;
+	if (status === "spam") return applySpamFeedback(env, user, messageId, "spam");
+	if (status === "received" && message.status === "spam") return applySpamFeedback(env, user, messageId, "ham");
 	await db.update(messages).set({ status }).where(eq(messages.id, messageId));
 	await createAuditLog(env, {
 		actorUserId: user.id,

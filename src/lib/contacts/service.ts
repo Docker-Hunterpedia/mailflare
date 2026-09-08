@@ -21,7 +21,9 @@ export async function upsertContactFromAddress(env: CloudflareEnv, input: Contac
 
 	if (existing) {
 		const nextDisplayName = getNextDisplayName(existing.displayName, existing.source, displayName);
-		const nextSource = existing.source === "manual" ? "manual" : input.source;
+		const nextSource = existing.source === "manual" || (existing.source === "outbound" && input.source === "inbound")
+			? existing.source
+			: input.source;
 
 		await db
 			.update(contacts)

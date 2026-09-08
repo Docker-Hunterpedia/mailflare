@@ -262,6 +262,7 @@ export async function ensureDemoDomain(env: CloudflareEnv, userId: string) {
 		zoneId: "00000000000000000000000000000000",
 		status: "active",
 		routingEnabled: true,
+		sendingRequested: true,
 		sendingEnabled: true,
 	});
 

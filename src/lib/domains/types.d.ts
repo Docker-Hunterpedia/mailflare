@@ -24,10 +24,16 @@ export type DomainProvisioningResult = {
 	hostname: string;
 	zone: { id: string; name: string };
 	routingEnabled: boolean;
+	sendingRequested: boolean;
 	sendingEnabled: boolean;
 	sendingSubdomainTag: string | null;
 	routingStatus?: string;
 	changes: DomainProvisioningChanges;
+};
+
+export type DomainPreflightResult = {
+	hostname: string;
+	zone: { id: string; name: string };
 };
 
 export type DomainRow = typeof domains.$inferSelect;

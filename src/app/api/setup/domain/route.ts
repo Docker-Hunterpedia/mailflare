@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasAdminAccount } from "@/lib/auth/setup";
 import { getEnv } from "@/lib/cloudflare";
-import { provisionDomainOnCloudflare } from "@/lib/domains/provision";
+import { preflightDomain } from "@/lib/domains/preflight";
 import { getPrimaryDomain } from "@/lib/user";
 import { setupDomainSchema } from "@/lib/validators";
 import { readJsonBody } from "@/lib/http/request";
@@ -31,20 +31,9 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		const provisioned = await provisionDomainOnCloudflare(env, parsed.data.hostname, {
-			enableRouting: true,
-			enableSending: true,
-		});
-		return NextResponse.json({
-			domain: {
-				hostname: provisioned.hostname,
-				zoneId: provisioned.zone.id,
-				routingEnabled: provisioned.routingEnabled,
-				sendingEnabled: provisioned.sendingEnabled,
-			},
-		});
+		return NextResponse.json({ domain: await preflightDomain(env, parsed.data.hostname) });
 	} catch (err) {
-		const message = err instanceof Error ? err.message : "Domain setup failed";
+		const message = err instanceof Error ? err.message : "Domain check failed";
 		return NextResponse.json({ error: message }, { status: 502 });
 	}
 }

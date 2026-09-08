@@ -1,16 +1,34 @@
 import { authFetch } from "@/lib/auth/client";
-import type { DomainCreateResult, DomainListResult, MailboxCreateResult } from "./types";
+import type {
+	DomainCreateResult,
+	DomainListResult,
+	DomainPreflightResponse,
+	MailboxCreateResult,
+} from "./types";
 
 export async function getDomains(): Promise<DomainListResult> {
 	const res = await authFetch("/api/domains");
 	return (await res.json()) as DomainListResult;
 }
 
-export async function createDomain(hostname: string): Promise<{ ok: boolean; data: DomainCreateResult }> {
+export async function checkDomain(hostname: string): Promise<DomainPreflightResponse> {
+	const res = await authFetch("/api/domains/check", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ hostname }),
+	});
+	const data = (await res.json()) as Omit<DomainPreflightResponse, "ok">;
+	return { ok: res.ok, ...data };
+}
+
+export async function createDomain(
+	hostname: string,
+	enableSending: boolean,
+): Promise<{ ok: boolean; data: DomainCreateResult }> {
 	const res = await authFetch("/api/domains", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ hostname, enableRouting: true, enableSending: true }),
+		body: JSON.stringify({ hostname, enableRouting: true, enableSending }),
 	});
 
 	return {

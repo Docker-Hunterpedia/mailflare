@@ -13,7 +13,9 @@ export async function GET() {
 		return NextResponse.json({
 			hasAdminAccount: adminAccountExists,
 			hasPrimaryDomain: !!domain,
-			primaryDomain: domain ? { hostname: domain.hostname } : null,
+			primaryDomain: domain
+				? { hostname: domain.hostname, sendingRequested: domain.sendingRequested }
+				: null,
 		}, {
 			headers: { "Cache-Control": "no-store" },
 		});

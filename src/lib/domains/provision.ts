@@ -64,20 +64,16 @@ export async function provisionDomainOnCloudflare(
 	}
 
 	if (enableSending) {
-		if (isZoneApex(normalized, zone.name)) {
-			sendingEnabled = false;
+		const subs = await listSendingSubdomains(env, zone.id);
+		const existingSub = subs.find((s) => s.name === normalized);
+		if (existingSub) {
+			sendingSubdomainTag = existingSub.tag;
+			sendingEnabled = existingSub.enabled;
 		} else {
-			const subs = await listSendingSubdomains(env, zone.id);
-			const existingSub = subs.find((s) => s.name === normalized);
-			if (existingSub) {
-				sendingSubdomainTag = existingSub.tag;
-				sendingEnabled = existingSub.enabled;
-			} else {
-				const created = await createSendingSubdomain(env, zone.id, normalized);
-				sendingSubdomainTag = created.tag;
-				sendingEnabled = created.enabled;
-				changes.createdSendingSubdomainTag = created.tag;
-			}
+			const created = await createSendingSubdomain(env, zone.id, normalized);
+			sendingSubdomainTag = created.tag;
+			sendingEnabled = created.enabled;
+			changes.createdSendingSubdomainTag = created.tag;
 		}
 	}
 
@@ -85,6 +81,7 @@ export async function provisionDomainOnCloudflare(
 		hostname: normalized,
 		zone,
 		routingEnabled,
+		sendingRequested: enableSending,
 		sendingEnabled,
 		sendingSubdomainTag,
 		routingStatus,

@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 	try {
 		const added = await addDomainForUser(env, userId, domainName, {
 			enableRouting: true,
-			enableSending: true,
+			enableSending: firstRunParsed.data.enableSending ?? true,
 		});
 		const domain = added.domain;
 		changes = added.changes;

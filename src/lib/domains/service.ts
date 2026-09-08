@@ -59,6 +59,7 @@ export async function addDomainForUser(
 			status: provisioned.routingEnabled || provisioned.sendingEnabled ? ("active" as const) : ("pending" as const),
 			routingStatus: provisioned.routingStatus ?? null,
 			sendingSubdomainTag: provisioned.sendingSubdomainTag,
+			sendingRequested: provisioned.sendingRequested,
 			sendingEnabled: provisioned.sendingEnabled,
 			routingEnabled: provisioned.routingEnabled,
 		};
@@ -109,7 +110,7 @@ export async function getDomainDns(
 	env: CloudflareEnv,
 	domain: typeof domains.$inferSelect,
 ): Promise<DomainDnsView> {
-	const shouldInspectSending = domain.sendingEnabled || Boolean(domain.sendingSubdomainTag);
+	const shouldInspectSending = domain.sendingRequested;
 	const [routingDns, routingSettings, sendingSubdomains] = await Promise.all([
 		getEmailRoutingDns(env, domain.zoneId),
 		getEmailRoutingSettings(env, domain.zoneId),

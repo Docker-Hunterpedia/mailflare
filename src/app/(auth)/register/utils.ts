@@ -21,11 +21,11 @@ export async function getSetupStatus(): Promise<SetupStatus> {
 	return data;
 }
 
-export async function submitPrimaryDomain(form: FormData): Promise<{ ok: boolean; data: DomainSetupResult }> {
+export async function submitPrimaryDomain(hostname: string): Promise<{ ok: boolean; data: DomainSetupResult }> {
 	const res = await fetch("/api/setup/domain", {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ hostname: form.get("domain") }),
+		body: JSON.stringify({ hostname }),
 	});
 
 	return {
@@ -36,7 +36,7 @@ export async function submitPrimaryDomain(form: FormData): Promise<{ ok: boolean
 
 export async function submitRegistration(
 	form: FormData,
-	payload: { firstRun: boolean; domain: string },
+	payload: { firstRun: boolean; domain: string; enableSending?: boolean },
 ): Promise<{ ok: boolean; data: RegisterResult }> {
 	const res = await fetch("/api/auth/register", {
 		method: "POST",
@@ -45,6 +45,7 @@ export async function submitRegistration(
 			payload.firstRun
 				? {
 						domain: payload.domain,
+						enableSending: payload.enableSending,
 						username: form.get("username"),
 						password: form.get("password"),
 						resetEmail: form.get("resetEmail"),

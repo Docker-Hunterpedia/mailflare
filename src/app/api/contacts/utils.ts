@@ -14,6 +14,12 @@ export async function getContactByEmail(db: Db, userId: string, email: string) {
 	return contact ?? null;
 }
 
+export function toContactDetails(contact: Awaited<ReturnType<typeof getContactByEmail>>) {
+	if (!contact) return null;
+	const { avatarKey, ...details } = contact;
+	return { ...details, hasAvatar: !!avatarKey };
+}
+
 export async function saveManualContactName(
 	db: Db,
 	input: { userId: string; email: string; displayName: string },

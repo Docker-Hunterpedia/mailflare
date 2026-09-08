@@ -24,7 +24,9 @@ const MIGRATION_NAMES = [
 	"0022_add_mailbox_auto_reply.sql",
 	"0023_add_mailbox_aliases.sql",
 	"0024_add_advanced_routing_and_webhook_retries.sql",
-	"0025_add_domain_sending_intent.sql",
+	"0025_add_threading_and_cc_bcc.sql",
+	"0026_add_contact_avatars.sql",
+	"0027_add_domain_sending_intent.sql",
 ];
 
 const INITIAL_SCHEMA_SQL = `
@@ -45,7 +47,7 @@ CREATE TABLE IF NOT EXISTS mailbox_access (id text PRIMARY KEY NOT NULL, mailbox
 CREATE UNIQUE INDEX IF NOT EXISTS mailbox_access_mailbox_user_idx ON mailbox_access(mailbox_id, user_id);
 CREATE INDEX IF NOT EXISTS mailbox_access_user_idx ON mailbox_access(user_id);
 CREATE INDEX IF NOT EXISTS mailbox_access_mailbox_idx ON mailbox_access(mailbox_id);
-CREATE TABLE IF NOT EXISTS contacts (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, email text NOT NULL, display_name text, source text DEFAULT 'inbound' NOT NULL, blocked integer DEFAULT false NOT NULL, last_seen_at integer, created_at integer NOT NULL);
+CREATE TABLE IF NOT EXISTS contacts (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, email text NOT NULL, display_name text, avatar_key text, source text DEFAULT 'inbound' NOT NULL, blocked integer DEFAULT false NOT NULL, last_seen_at integer, created_at integer NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS contacts_user_email_idx ON contacts(user_id, email);
 CREATE INDEX IF NOT EXISTS contacts_user_idx ON contacts(user_id);
 CREATE TABLE IF NOT EXISTS folders (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, mailbox_id text NOT NULL REFERENCES mailboxes(id) ON DELETE cascade, name text NOT NULL, color text DEFAULT '#2563eb' NOT NULL, created_at integer NOT NULL);
@@ -53,10 +55,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS folders_mailbox_name_idx ON folders(mailbox_id
 CREATE INDEX IF NOT EXISTS folders_user_idx ON folders(user_id);
 CREATE INDEX IF NOT EXISTS folders_mailbox_idx ON folders(mailbox_id);
 CREATE TABLE IF NOT EXISTS api_keys (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, name text NOT NULL, prefix text NOT NULL, key_hash text NOT NULL, scopes text NOT NULL, created_at integer NOT NULL, last_used_at integer);
-CREATE TABLE IF NOT EXISTS messages (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, mailbox_id text REFERENCES mailboxes(id) ON DELETE set null, direction text NOT NULL, provider_message_id text, folder_id text REFERENCES folders(id) ON DELETE set null, from_addr text NOT NULL, to_addr text NOT NULL, subject text, snippet text, text_body text, html_body text, raw_r2_key text, status text DEFAULT 'received' NOT NULL, read integer DEFAULT false NOT NULL, starred integer DEFAULT false NOT NULL, snoozed_until integer, thread_id text, created_at integer NOT NULL);
+CREATE TABLE IF NOT EXISTS messages (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, mailbox_id text REFERENCES mailboxes(id) ON DELETE set null, direction text NOT NULL, provider_message_id text, folder_id text REFERENCES folders(id) ON DELETE set null, from_addr text NOT NULL, to_addr text NOT NULL, cc_addr text, bcc_addr text, subject text, snippet text, text_body text, html_body text, raw_r2_key text, status text DEFAULT 'received' NOT NULL, read integer DEFAULT false NOT NULL, starred integer DEFAULT false NOT NULL, snoozed_until integer, thread_id text, in_reply_to text, references_header text, created_at integer NOT NULL);
 CREATE INDEX IF NOT EXISTS messages_user_created_idx ON messages(user_id, created_at);
 CREATE INDEX IF NOT EXISTS messages_mailbox_idx ON messages(mailbox_id);
 CREATE INDEX IF NOT EXISTS messages_folder_idx ON messages(folder_id);
+CREATE INDEX IF NOT EXISTS messages_thread_idx ON messages(mailbox_id, thread_id);
+CREATE INDEX IF NOT EXISTS messages_provider_message_idx ON messages(mailbox_id, provider_message_id);
 CREATE TABLE IF NOT EXISTS message_attachments (id text PRIMARY KEY NOT NULL, message_id text NOT NULL REFERENCES messages(id) ON DELETE cascade, filename text NOT NULL, content_type text NOT NULL, size integer NOT NULL, disposition text DEFAULT 'attachment' NOT NULL, content_id text, r2_key text NOT NULL UNIQUE, created_at integer NOT NULL);
 CREATE INDEX IF NOT EXISTS message_attachments_message_idx ON message_attachments(message_id);
 CREATE TABLE IF NOT EXISTS outbound_jobs (id text PRIMARY KEY NOT NULL, user_id text NOT NULL REFERENCES users(id) ON DELETE cascade, message_id text REFERENCES messages(id) ON DELETE set null, status text DEFAULT 'queued' NOT NULL, payload text NOT NULL, error text, scheduled_at integer, created_at integer NOT NULL, updated_at integer NOT NULL);

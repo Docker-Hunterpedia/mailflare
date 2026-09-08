@@ -143,6 +143,7 @@ export const contacts = sqliteTable(
 			.references(() => users.id, { onDelete: "cascade" }),
 		email: text("email").notNull(),
 		displayName: text("display_name"),
+		avatarKey: text("avatar_key"),
 		source: text("source", { enum: ["manual", "inbound", "outbound"] })
 			.notNull()
 			.default("inbound"),
@@ -209,6 +210,8 @@ export const messages = sqliteTable(
 		folderId: text("folder_id").references(() => folders.id, { onDelete: "set null" }),
 		fromAddr: text("from_addr").notNull(),
 		toAddr: text("to_addr").notNull(),
+		ccAddr: text("cc_addr"),
+		bccAddr: text("bcc_addr"),
 		subject: text("subject"),
 		snippet: text("snippet"),
 		textBody: text("text_body"),
@@ -219,6 +222,10 @@ export const messages = sqliteTable(
 		starred: integer("starred", { mode: "boolean" }).notNull().default(false),
 		snoozedUntil: integer("snoozed_until", { mode: "timestamp" }),
 		threadId: text("thread_id"),
+		// RFC 5322 threading headers, kept so replies land in the right conversation
+		// and so outgoing replies can carry them on to the recipient's client.
+		inReplyTo: text("in_reply_to"),
+		references: text("references_header"),
 		createdAt: integer("created_at", { mode: "timestamp" })
 			.notNull()
 			.$defaultFn(() => new Date()),
@@ -227,6 +234,8 @@ export const messages = sqliteTable(
 		index("messages_user_created_idx").on(t.userId, t.createdAt),
 		index("messages_mailbox_idx").on(t.mailboxId),
 		index("messages_folder_idx").on(t.folderId),
+		index("messages_thread_idx").on(t.mailboxId, t.threadId),
+		index("messages_provider_message_idx").on(t.mailboxId, t.providerMessageId),
 	],
 );
 

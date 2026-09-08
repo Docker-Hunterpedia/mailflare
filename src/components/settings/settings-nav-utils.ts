@@ -9,8 +9,8 @@ export const settingsNavSections: SettingsNavSection[] = [
 				label: "Account",
 			},
 			{
-				href: "/settings/auto-reply",
-				label: "Auto Reply",
+				href: "/settings/inbox",
+				label: "Inbox",
 			},
 			{
 				href: "/settings/rules",

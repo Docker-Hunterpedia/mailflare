@@ -26,7 +26,7 @@ test("bootstrap records migrations represented in the current schema so later de
 		"0013_add_license_settings.sql",
 		"0021_add_mailbox_signature.sql",
 		"0022_add_mailbox_auto_reply.sql",
-		"0025_add_domain_sending_intent.sql",
+		"0027_add_domain_sending_intent.sql",
 	]) {
 		assert.ok(names.includes(name), `MIGRATION_NAMES is missing ${name}`);
 	}

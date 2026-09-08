@@ -11,11 +11,11 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ContactAvatarForm } from "./contact-avatar-form";
 import { Label } from "@/components/ui/label";
 import type { ContactDetailsRecord, ContactDetailsTriggerProps } from "./contact-details-types";
 import {
 	fetchContactDetails,
-	getContactInitial,
 	updateContactName,
 } from "./contact-details-utils";
 
@@ -98,9 +98,13 @@ export function ContactDetailsTrigger({
 					</DialogHeader>
 					<div className="space-y-5">
 						<div className="flex items-center gap-4">
-							<div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-100 text-lg font-semibold text-blue-700">
-								{getContactInitial(shownName, address)}
-							</div>
+							<ContactAvatarForm
+								mailboxId={mailboxId}
+								address={address}
+								name={shownName}
+								hasAvatar={contact?.hasAvatar ?? false}
+								onAvatarChange={(hasAvatar) => setContact((current) => current ? { ...current, hasAvatar } : current)}
+							/>
 							<div className="min-w-0">
 								<p className="truncate font-medium text-neutral-900">{shownName}</p>
 								<p className="truncate text-sm text-neutral-500">{contact?.email ?? address}</p>

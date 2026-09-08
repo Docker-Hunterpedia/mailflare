@@ -1,5 +1,5 @@
 import { authFetch } from "@/lib/auth/client";
-import type { ComposeAttachment, ComposeDraft, DraftResponse } from "./types";
+import type { ComposeAttachment, ComposeDraft, ComposeThreading, DraftResponse } from "./types";
 
 export async function fetchDraft(draftId: string): Promise<ComposeDraft> {
 	const res = await authFetch(`/api/drafts/${draftId}`);
@@ -18,14 +18,29 @@ export function buildSendFormData(input: {
 	mailboxId?: string;
 	subject: string;
 	text: string;
+	html?: string;
 	to: string;
+	cc?: string;
+	bcc?: string;
+	threading?: ComposeThreading;
+	/** Draft whose stored attachments should be sent with the message. */
+	draftId?: string | null;
+	scheduledAt?: Date | null;
 }): FormData {
 	const form = new FormData();
 	form.set("from", input.from);
 	form.set("to", input.to);
+	if (input.cc) form.set("cc", input.cc);
+	if (input.bcc) form.set("bcc", input.bcc);
 	form.set("subject", input.subject);
 	form.set("text", input.text);
+	if (input.html) form.set("html", input.html);
 	if (input.mailboxId) form.set("mailboxId", input.mailboxId);
+	if (input.threading?.inReplyTo) form.set("inReplyTo", input.threading.inReplyTo);
+	if (input.threading?.references) form.set("references", input.threading.references);
+	if (input.threading?.threadId) form.set("threadId", input.threading.threadId);
+	if (input.draftId) form.set("draftId", input.draftId);
+	if (input.scheduledAt) form.set("scheduledAt", input.scheduledAt.toISOString());
 	for (const attachment of input.attachments) {
 		form.append("attachments", attachment.file);
 	}

@@ -11,6 +11,7 @@ import { sendMailboxAutoReply } from "@/lib/email/auto-reply";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import { listMessageAttachments, storeMessageAttachments } from "@/lib/email/attachments";
 import { getUnsubscribeUrlFromRawR2Key } from "@/lib/email/unsubscribe";
+import { resolveThreadId } from "@/lib/email/threading";
 import type { SessionUser } from "@/lib/auth/types";
 import {
 	getMailboxNotificationUserIds,
@@ -63,11 +64,13 @@ export async function processInboundMessage(
 	const messageId = newId("msg");
 	const snippet = buildSnippet(parsed.text, parsed.html);
 	const deliveredAddress = getEmailAddress(payload.to) || `${decision.mailbox.localPart}@${decision.mailbox.hostname}`;
-	const toAddr = payload.to;
+	// Keep the whole To header so reply-all can address everyone; rules and
+	// webhooks still see the envelope recipient the message was delivered to.
+	const toAddr = parsed.toAddr ?? payload.to;
 	const fromAddr = parsed.fromAddr ?? payload.from;
 	const destination = await resolveInboxRuleDestination(db, {
 		mailboxId: decision.mailbox.mailboxId,
-		toAddress: toAddr,
+		toAddress: payload.to,
 		fromAddress: fromAddr,
 		subject: parsed.subject,
 		content: [parsed.text, parsed.html, snippet].filter(Boolean).join(" "),
@@ -76,6 +79,12 @@ export async function processInboundMessage(
 		userId: decision.mailbox.userId,
 		address: fromAddr,
 		source: "inbound",
+	});
+	const threadId = await resolveThreadId(db, {
+		mailboxId: decision.mailbox.mailboxId,
+		messageId: parsed.messageId,
+		inReplyTo: parsed.inReplyTo,
+		references: parsed.references,
 	});
 
 	try {
@@ -88,13 +97,16 @@ export async function processInboundMessage(
 			providerMessageId: parsed.messageId,
 			fromAddr,
 			toAddr,
+			ccAddr: parsed.ccAddr,
 			subject: parsed.subject,
 			snippet,
 			textBody: parsed.text,
 			htmlBody: parsed.html,
 			rawR2Key: payload.rawR2Key,
 			status: destination.status,
-			threadId: parsed.messageId,
+			threadId,
+			inReplyTo: parsed.inReplyTo,
+			references: parsed.references.length ? parsed.references.join(" ") : null,
 		});
 
 		await storeMessageAttachments(env, messageId, parsed.attachments, { validate: false });
@@ -134,8 +146,10 @@ export async function processInboundMessage(
 	await dispatchWebhooks(env, decision.mailbox.userId, "message.inbound", {
 		messageId,
 		from: fromAddr,
-		to: toAddr,
+		to: payload.to,
+		cc: parsed.ccAddr ?? undefined,
 		subject: parsed.subject,
+		threadId,
 	});
 }
 

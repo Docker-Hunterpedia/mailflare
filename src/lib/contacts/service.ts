@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { contacts, routingRules } from "@/db/schema";
-import { normalizeEmailAddress } from "@/lib/email/address";
+import { getFirstEmailAddressEntry, normalizeEmailAddress } from "@/lib/email/address";
 import type { BlockContactInput, ContactInput, MessageContactNames } from "@/lib/contacts/types";
 import { getContactId, getContactNameFromAddress } from "@/lib/contacts/utils";
 
@@ -64,17 +64,32 @@ export async function getContactDisplayNameMap(env: CloudflareEnv, userId: strin
 	);
 }
 
+export async function getContactAvatarMap(env: CloudflareEnv, userId: string, addresses: string[]) {
+	const emails = Array.from(new Set(addresses.map(normalizeEmailAddress).filter(Boolean)));
+	if (emails.length === 0) return new Map<string, boolean>();
+
+	const db = getDb(env);
+	const rows = await db
+		.select({ email: contacts.email, avatarKey: contacts.avatarKey })
+		.from(contacts)
+		.where(and(eq(contacts.userId, userId), inArray(contacts.email, emails)));
+
+	return new Map(rows.map((contact) => [contact.email, !!contact.avatarKey]));
+}
+
 export async function getMessageContactNames(
 	env: CloudflareEnv,
 	userId: string,
 	fromAddr: string,
 	toAddr: string,
 ): Promise<MessageContactNames> {
-	const contactMap = await getContactDisplayNameMap(env, userId, [fromAddr, toAddr]);
+	// `toAddr` may be a full recipient list; the name shown belongs to the first one.
+	const firstTo = getFirstEmailAddressEntry(toAddr);
+	const contactMap = await getContactDisplayNameMap(env, userId, [fromAddr, firstTo]);
 
 	return {
 		fromContactName: contactMap.get(normalizeEmailAddress(fromAddr)) ?? null,
-		toContactName: contactMap.get(normalizeEmailAddress(toAddr)) ?? null,
+		toContactName: contactMap.get(normalizeEmailAddress(firstTo)) ?? null,
 	};
 }
 

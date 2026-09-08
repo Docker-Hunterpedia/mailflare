@@ -1,7 +1,7 @@
 export type SetupStatus = {
 	hasAdminAccount: boolean;
 	hasPrimaryDomain: boolean;
-	primaryDomain?: { hostname: string } | null;
+	primaryDomain?: { hostname: string; sendingRequested: boolean } | null;
 	error?: string;
 };
 
@@ -17,8 +17,13 @@ export type SetupPreparationResult = {
 	error?: string;
 };
 
+export type DomainPreflight = {
+	hostname: string;
+	zone: { id: string; name: string };
+};
+
 export type DomainSetupResult = {
-	domain?: { hostname: string };
+	domain?: DomainPreflight;
 	error?: string;
 };
 

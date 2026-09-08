@@ -8,9 +8,9 @@ Set up Mailflare in three steps:
 
 1. **Deploy the app:** use the Deploy to Cloudflare button, set the app name to `mailflare`, and provide the required `CF_TOKEN`.
 2. **Complete setup:** open the deployed app and follow `/setup` to check the installation and create the first admin account.
-3. **Connect your domain:** add a domain managed by the same Cloudflare account. Mailflare configures email routing and sending, then helps you create the first mailbox.
+3. **Connect your domain:** add a domain managed by the same Cloudflare account. Mailflare configures email routing and, when available and selected, email sending before helping you create the first mailbox.
 
-The Worker name must remain `mailflare`. Before starting, create the required `CF_TOKEN` with **Zone Read**, **Email Routing Edit**, **Email Sending Edit**, and **Email Routing Rules Write** permissions for every domain you plan to connect.
+The Worker name must remain `mailflare`. Before starting, create the required `CF_TOKEN` with **Zone Read**, **Email Routing Edit**, and **Email Routing Rules Write** permissions for every domain you plan to connect. Add **Email Sending Edit** when Mailflare should send email; it is optional for receive-only domains.
 
 ## Step 1: Deploy mailflare
 
@@ -26,7 +26,7 @@ The Worker name must remain `mailflare`. Before starting, create the required `C
 
 Mailflare requires this runtime value:
 
-- `CF_TOKEN` — a scoped Cloudflare API token with **Zone Read**, **Email Routing Edit**, **Email Sending Edit**, and **Email Routing Rules Write** access for the domains you will connect. This is separate from the token Cloudflare uses to deploy the app.
+- `CF_TOKEN` — a scoped Cloudflare API token with **Zone Read**, **Email Routing Edit**, and **Email Routing Rules Write** access for the domains you will connect. Add **Email Sending Edit** to enable outbound mail. This is separate from the token Cloudflare uses to deploy the app.
 
 Paste only the token secret into `CF_TOKEN`. Do not include the word `Bearer` and do not use the token ID. The token must belong to the same Cloudflare account as the domains you connect.
 

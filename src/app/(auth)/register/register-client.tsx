@@ -8,6 +8,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { TurnstileField } from "@/components/auth/turnstile";
 import {
   getSetupStatus,
@@ -15,7 +16,7 @@ import {
   submitPrimaryDomain,
   submitRegistration,
 } from "./utils";
-import type { SetupRequirementCheck } from "./types";
+import type { DomainPreflight, DomainSetupResult, SetupRequirementCheck } from "./types";
 
 export function RegisterClient() {
   const router = useRouter();
@@ -24,7 +25,12 @@ export function RegisterClient() {
     null,
   );
   const [primaryDomain, setPrimaryDomain] = useState<string | null>(null);
+  const [primaryDomainSendingRequested, setPrimaryDomainSendingRequested] = useState<boolean | null>(null);
   const [setupDomain, setSetupDomain] = useState<string | null>(null);
+  const [domainCheck, setDomainCheck] = useState<DomainPreflight | null>(null);
+  const [domainChecking, setDomainChecking] = useState(false);
+  const [enableSending, setEnableSending] = useState(false);
+  const [setupEnableSending, setSetupEnableSending] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [checks, setChecks] = useState<SetupRequirementCheck[]>([]);
   const [databaseMigrated, setDatabaseMigrated] = useState(false);
@@ -55,6 +61,7 @@ export function RegisterClient() {
       setHasAdminAccount(data.hasAdminAccount);
       setHasPrimaryDomain(data.hasPrimaryDomain);
       setPrimaryDomain(data.primaryDomain?.hostname ?? null);
+      setPrimaryDomainSendingRequested(data.primaryDomain?.sendingRequested ?? null);
       setPreparationComplete(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Installation preparation failed");
@@ -68,9 +75,12 @@ export function RegisterClient() {
     setLoading(true);
     setError(null);
 
-    const { ok, data } = await submitPrimaryDomain(
-      new FormData(e.currentTarget),
-    );
+    const hostname = String(new FormData(e.currentTarget).get("domain") ?? "").toLowerCase().trim();
+    const usedCachedCheck = domainCheck?.hostname === hostname;
+    const result: { ok: boolean; data: DomainSetupResult } = usedCachedCheck
+      ? { ok: true, data: { domain: domainCheck } }
+      : await submitPrimaryDomain(hostname);
+    const { ok, data } = result;
     setLoading(false);
     if (!ok || !data.domain) {
       setError(
@@ -79,7 +89,27 @@ export function RegisterClient() {
       return;
     }
     setSetupDomain(data.domain.hostname);
+    setSetupEnableSending(usedCachedCheck ? enableSending : true);
     setStep(3);
+  }
+
+  async function onDomainBlur(e: React.FocusEvent<HTMLInputElement>) {
+    const hostname = e.currentTarget.value.toLowerCase().trim();
+    if (hostname.length < 3 || domainCheck?.hostname === hostname) return;
+
+    setDomainChecking(true);
+    setError(null);
+    const { ok, data } = await submitPrimaryDomain(hostname);
+    setDomainChecking(false);
+    if (!ok || !data.domain) {
+      setDomainCheck(null);
+      setEnableSending(false);
+      setError(typeof data.error === "string" ? data.error : "Domain check failed");
+      return;
+    }
+
+    setDomainCheck(data.domain);
+    setEnableSending(true);
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -95,7 +125,13 @@ export function RegisterClient() {
       return;
     }
 
-    const { ok, data } = await submitRegistration(form, { firstRun: true, domain });
+    const { ok, data } = await submitRegistration(form, {
+      firstRun: true,
+      domain,
+      enableSending: setupDomain
+        ? setupEnableSending
+        : primaryDomainSendingRequested ?? undefined,
+    });
     setLoading(false);
     if (!ok) {
       setError(
@@ -225,11 +261,44 @@ export function RegisterClient() {
               placeholder="example.com"
               autoComplete="url"
               required
+              onBlur={(event) => void onDomainBlur(event)}
+              onChange={(event) => {
+                if (domainCheck?.hostname !== event.currentTarget.value.toLowerCase().trim()) {
+                  setDomainCheck(null);
+                  setEnableSending(false);
+                }
+              }}
             />
             <p className="text-xs leading-5 text-neutral-500">
               The domain must already be a Cloudflare zone on this account.
             </p>
           </div>
+          <div className="flex items-center justify-between gap-4 rounded-2xl bg-neutral-50 px-4 py-3">
+            <div>
+              <Label htmlFor="setup-enable-sending">Enable sending</Label>
+              <p className="mt-1 text-xs leading-5 text-neutral-500">
+                {domainChecking
+                  ? "Checking Cloudflare access..."
+                  : domainCheck
+                    ? enableSending
+                      ? "Required to send email."
+                      : "Receive-only mode."
+                    : "Enter the domain and leave the field to verify it."}
+              </p>
+            </div>
+            <Switch
+              id="setup-enable-sending"
+              checked={enableSending}
+              onCheckedChange={setEnableSending}
+              disabled={domainChecking || !domainCheck}
+            />
+          </div>
+          {domainCheck && (
+            <div className="flex items-center gap-3 rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
+              <CheckCircle2 className="h-4 w-4" />
+              Domain found in Cloudflare as {domainCheck.zone.name}
+            </div>
+          )}
           {error && (
             <p className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
               {error}
@@ -238,7 +307,7 @@ export function RegisterClient() {
           <Button
             type="submit"
             className="h-11 w-full rounded-full px-6 active:scale-[0.98]"
-            disabled={loading}
+            disabled={loading || domainChecking}
           >
             {loading ? "Adding domain..." : "Continue"}
           </Button>

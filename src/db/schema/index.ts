@@ -12,6 +12,7 @@ export const users = sqliteTable("users", {
 	role: text("role", { enum: ["admin", "user"] }).notNull().default("user"),
 	disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
 	canManageMailboxes: integer("can_manage_mailboxes", { mode: "boolean" }).notNull().default(false),
+	keyboardShortcutsEnabled: integer("keyboard_shortcuts_enabled", { mode: "boolean" }).notNull().default(true),
 	createdByUserId: text("created_by_user_id").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()

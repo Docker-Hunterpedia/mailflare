@@ -22,3 +22,8 @@ export interface CommandItem {
   keywords?: string[];
   perform: () => void;
 }
+
+export interface ShortcutsSettingsResponse {
+  enabled?: boolean;
+  error?: unknown;
+}

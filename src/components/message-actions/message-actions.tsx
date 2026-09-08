@@ -4,7 +4,7 @@ import { createElement, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, Ban, BellOff, Forward, Mail, MailOpen, MoreVertical, Reply, ReplyAll, ShieldAlert, Trash2 } from "lucide-react";
 import { useCompose } from "@/components/compose/compose-context";
-import { useHotkeys } from "@/components/shortcuts";
+import { useHotkeys, useShortcuts } from "@/components/shortcuts";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
@@ -42,6 +42,7 @@ export function MessageActions({
 }: MessageActionsProps) {
 	const router = useRouter();
 	const { openDraftComposer } = useCompose();
+	const { shortcutsEnabled } = useShortcuts();
 	const [pendingAction, setPendingAction] = useState<
 		BulkMessageAction | "unsubscribe" | ReplyMode | "forward" | "block" | null
 	>(null);
@@ -148,7 +149,7 @@ export function MessageActions({
 		[status, direction, runAction, handleReply, router]
 	);
 
-	useHotkeys(shortcuts);
+	useHotkeys(shortcuts, { enabled: shortcutsEnabled });
 
 	async function onUnsubscribe() {
 		setMoreOpen(false);
@@ -223,12 +224,12 @@ export function MessageActions({
 		<div className="flex items-center gap-3 text-neutral-600">
 			{error && <span className="text-xs text-red-600">{error}</span>}
 			<div className="flex items-center gap-2">
-				<Tooltip label="Reply (r)">
+				<Tooltip label={shortcutsEnabled ? "Reply (r)" : "Reply"}>
 					<Button
 						type="button"
 						variant="ghost"
 						size="sm"
-						aria-label="Reply (r)"
+						aria-label={shortcutsEnabled ? "Reply (r)" : "Reply"}
 						disabled={disabled}
 						onClick={() => handleReply("reply")}
 					>
@@ -263,33 +264,33 @@ export function MessageActions({
 						</Button>
 					</Tooltip>
 				)}
-				<Tooltip label="Archive (e)">
+				<Tooltip label={shortcutsEnabled ? "Archive (e)" : "Archive"}>
 					<Button
 						variant="ghost"
 						size="sm"
-						aria-label="Archive (e)"
+						aria-label={shortcutsEnabled ? "Archive (e)" : "Archive"}
 						disabled={disabled || status === "archived"}
 						onClick={() => runAction("archive")}
 					>
 						<Archive className="h-5 w-5" />
 					</Button>
 				</Tooltip>
-				<Tooltip label="Report spam (!)">
+				<Tooltip label={shortcutsEnabled ? "Report spam (!)" : "Report spam"}>
 					<Button
 						variant="ghost"
 						size="sm"
-						aria-label="Report spam (!)"
+						aria-label={shortcutsEnabled ? "Report spam (!)" : "Report spam"}
 						disabled={disabled || status === "spam" || direction !== "inbound"}
 						onClick={() => runAction("spam")}
 					>
 						<ShieldAlert className="h-5 w-5" />
 					</Button>
 				</Tooltip>
-				<Tooltip label="Delete (#)">
+				<Tooltip label={shortcutsEnabled ? "Delete (#)" : "Delete"}>
 					<Button
 						variant="ghost"
 						size="sm"
-						aria-label="Move to trash (#)"
+						aria-label={shortcutsEnabled ? "Move to trash (#)" : "Move to trash"}
 						disabled={disabled || status === "trash"}
 						onClick={() => runAction("trash")}
 					>

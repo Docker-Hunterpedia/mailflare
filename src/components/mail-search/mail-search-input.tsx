@@ -7,7 +7,8 @@ import { useShortcuts } from "@/components/shortcuts";
 
 export function MailSearchInput() {
 	const { query, setQuery } = useMailSearch();
-	const { openCommandPalette } = useShortcuts();
+	const { openCommandPalette, shortcutsEnabled, shortcutsPreferenceLoading } = useShortcuts();
+	const showShortcutHints = shortcutsEnabled && !shortcutsPreferenceLoading;
 
 	return (
 		<div className="flex h-12 flex-1 items-center gap-2.5 rounded-full bg-[#eaf1fb] px-4 text-neutral-600 focus-within:ring-2 focus-within:ring-blue-500/30 transition-all">
@@ -15,7 +16,7 @@ export function MailSearchInput() {
 			<Input
 				value={query}
 				onChange={(event) => setQuery(event.target.value)}
-				placeholder="Search mail (press / to focus)"
+				placeholder={showShortcutHints ? "Search mail (press / to focus)" : "Search mail"}
 				className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-neutral-800 outline-none! shadow-none! border-none! placeholder:text-neutral-500"
 			/>
 			{query ? (
@@ -27,7 +28,7 @@ export function MailSearchInput() {
 				>
 					<X className="h-4 w-4" />
 				</button>
-			) : (
+			) : showShortcutHints ? (
 				<button
 					type="button"
 					onClick={openCommandPalette}
@@ -36,7 +37,7 @@ export function MailSearchInput() {
 				>
 					<span className="text-[11px] font-mono">⌘K</span>
 				</button>
-			)}
+			) : null}
 		</div>
 	);
 }

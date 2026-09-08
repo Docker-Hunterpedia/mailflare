@@ -20,8 +20,13 @@ import type { ShortcutDefinition, CommandItem } from "./types";
 import { useHotkeys } from "./use-hotkeys";
 import { CommandPalette } from "./command-palette";
 import { ShortcutsHelpDialog } from "./shortcuts-help-dialog";
+import { useShortcutsEnabled } from "./use-shortcuts-enabled";
 
 interface ShortcutsContextValue {
+  shortcutsEnabled: boolean;
+  shortcutsPreferenceLoading: boolean;
+  shortcutsPreferenceError: string | null;
+  setShortcutsEnabled: (enabled: boolean) => Promise<void>;
   openCommandPalette: () => void;
   closeCommandPalette: () => void;
   openHelpModal: () => void;
@@ -53,15 +58,25 @@ export function ShortcutsProvider({
 }) {
   const router = useRouter();
   const { openComposer } = useCompose();
+  const {
+    enabled: shortcutsEnabled,
+    error: shortcutsPreferenceError,
+    isLoading: shortcutsPreferenceLoading,
+    setEnabled: setShortcutsEnabled,
+  } = useShortcutsEnabled();
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [customShortcuts, setCustomShortcuts] = useState<ShortcutDefinition[]>(extraShortcuts);
   const [customCommands, setCustomCommands] = useState<CommandItem[]>(extraCommands);
 
-  const openCommandPalette = () => setIsCommandPaletteOpen(true);
+  const openCommandPalette = () => {
+    if (shortcutsEnabled && !shortcutsPreferenceLoading) setIsCommandPaletteOpen(true);
+  };
   const closeCommandPalette = () => setIsCommandPaletteOpen(false);
-  const openHelpModal = () => setIsHelpModalOpen(true);
+  const openHelpModal = () => {
+    if (shortcutsEnabled && !shortcutsPreferenceLoading) setIsHelpModalOpen(true);
+  };
   const closeHelpModal = () => setIsHelpModalOpen(false);
 
   const registerShortcut = (shortcut: ShortcutDefinition) => {
@@ -185,7 +200,7 @@ export function ShortcutsProvider({
     ];
   }, [router, openComposer, customShortcuts]);
 
-  useHotkeys(baseShortcuts, { enabled: true });
+  useHotkeys(baseShortcuts, { enabled: shortcutsEnabled && !shortcutsPreferenceLoading });
 
   // Base Command Palette actions
   const allCommands = useMemo<CommandItem[]>(() => {
@@ -288,6 +303,10 @@ export function ShortcutsProvider({
   return (
     <ShortcutsContext.Provider
       value={{
+        shortcutsEnabled,
+        shortcutsPreferenceLoading,
+        shortcutsPreferenceError,
+        setShortcutsEnabled,
         openCommandPalette,
         closeCommandPalette,
         openHelpModal,
@@ -299,16 +318,20 @@ export function ShortcutsProvider({
       }}
     >
       {children}
-      <CommandPalette
-        isOpen={isCommandPaletteOpen}
-        onClose={closeCommandPalette}
-        commands={allCommands}
-      />
-      <ShortcutsHelpDialog
-        isOpen={isHelpModalOpen}
-        onClose={closeHelpModal}
-        shortcuts={baseShortcuts}
-      />
+      {shortcutsEnabled && !shortcutsPreferenceLoading && (
+        <>
+          <CommandPalette
+            isOpen={isCommandPaletteOpen}
+            onClose={closeCommandPalette}
+            commands={allCommands}
+          />
+          <ShortcutsHelpDialog
+            isOpen={isHelpModalOpen}
+            onClose={closeHelpModal}
+            shortcuts={baseShortcuts}
+          />
+        </>
+      )}
     </ShortcutsContext.Provider>
   );
 }

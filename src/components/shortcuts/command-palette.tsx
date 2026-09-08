@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Search, CornerDownLeft } from "lucide-react";
 import type { CommandItem } from "./types";
+import { filterCommands, groupCommandsByCategory } from "./command-palette-utils";
+import { CommandPaletteItem } from "./command-palette-item";
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -20,25 +22,15 @@ function CommandPaletteDialog({
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const filteredCommands = useMemo(() => {
-    if (!query.trim()) return commands;
-    const lowerQuery = query.toLowerCase();
-    return commands.filter((cmd) => {
-      const matchTitle = cmd.title.toLowerCase().includes(lowerQuery);
-      const matchSubtitle = cmd.subtitle?.toLowerCase().includes(lowerQuery);
-      const matchCategory = cmd.category.toLowerCase().includes(lowerQuery);
-      const matchKeywords = cmd.keywords?.some((k) =>
-        k.toLowerCase().includes(lowerQuery)
-      );
-      return matchTitle || matchSubtitle || matchCategory || matchKeywords;
-    });
-  }, [commands, query]);
+  const filteredCommands = useMemo(
+    () => filterCommands(commands, query),
+    [commands, query]
+  );
 
   const activeIndex = Math.min(
     selectedIndex,
@@ -66,21 +58,16 @@ function CommandPaletteDialog({
     }
   };
 
-  const grouped = filteredCommands.reduce((acc, item) => {
-    if (!acc[item.category]) acc[item.category] = [];
-    acc[item.category].push(item);
-    return acc;
-  }, {} as Record<string, CommandItem[]>);
+  const grouped = useMemo(
+    () => groupCommandsByCategory(filteredCommands),
+    [filteredCommands]
+  );
 
   let flatIndex = 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-neutral-900/40 backdrop-blur-xs animate-in fade-in duration-100">
-      <div
-        className="fixed inset-0"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
       <div
         className="relative w-full max-w-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col z-10"
         onKeyDown={handleKeyDown}
@@ -105,10 +92,7 @@ function CommandPaletteDialog({
         </div>
 
         {/* Results */}
-        <div
-          ref={listRef}
-          className="max-h-80 overflow-y-auto p-2"
-        >
+        <div className="max-h-80 overflow-y-auto p-2">
           {filteredCommands.length === 0 ? (
             <div className="p-8 text-center text-sm text-neutral-400">
               No matching commands found for &ldquo;{query}&rdquo;
@@ -123,60 +107,18 @@ function CommandPaletteDialog({
                   const isCurrent = flatIndex === activeIndex;
                   const itemIndex = flatIndex;
                   flatIndex++;
-                  const Icon = item.icon;
 
                   return (
-                    <button
+                    <CommandPaletteItem
                       key={item.id}
-                      type="button"
-                      onClick={() => {
+                      item={item}
+                      isActive={isCurrent}
+                      onSelect={() => {
                         item.perform();
                         onClose();
                       }}
-                      onMouseEnter={() => setSelectedIndex(itemIndex)}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between transition-colors ${
-                        isCurrent
-                          ? "bg-blue-600 text-white"
-                          : "text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800/70"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {Icon && (
-                          <Icon
-                            className={`w-4 h-4 shrink-0 ${
-                              isCurrent
-                                ? "text-white"
-                                : "text-neutral-500 dark:text-neutral-400"
-                            }`}
-                          />
-                        )}
-                        <div className="truncate">
-                          <span className="text-sm font-medium">{item.title}</span>
-                          {item.subtitle && (
-                            <span
-                              className={`ml-2 text-xs truncate ${
-                                isCurrent
-                                  ? "text-blue-100"
-                                  : "text-neutral-400 dark:text-neutral-500"
-                              }`}
-                            >
-                              {item.subtitle}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {item.shortcut && (
-                        <kbd
-                          className={`text-xs px-2 py-0.5 rounded-md font-mono font-medium shrink-0 ${
-                            isCurrent
-                              ? "bg-blue-700 text-blue-100"
-                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700"
-                          }`}
-                        >
-                          {item.shortcut}
-                        </kbd>
-                      )}
-                    </button>
+                      onHover={() => setSelectedIndex(itemIndex)}
+                    />
                   );
                 })}
               </div>

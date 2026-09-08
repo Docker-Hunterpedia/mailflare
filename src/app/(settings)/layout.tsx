@@ -12,6 +12,7 @@ import { MailboxSelector } from "@/components/mailbox-selector";
 import { LicenseIndicator } from "@/components/license-indicator";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { SidebarProvider } from "@/components/sidebar-state";
+import { ShortcutsProvider } from "@/components/shortcuts";
 
 export default function DashboardLayout({
   children,
@@ -24,6 +25,7 @@ export default function DashboardLayout({
       <MailboxProvider>
         <ComposeProvider>
           <MailSearchProvider>
+            <ShortcutsProvider>
             <div className="grid h-[100dvh] grid-cols-[var(--sidebar-width)_minmax(0,1fr)] overflow-hidden bg-[#f6f8fc] transition-[grid-template-columns] duration-200">
               <aside className="min-h-0 overflow-y-auto overscroll-contain px-3 py-4 [scrollbar-gutter:stable]">
                 <DashboardNav />
@@ -46,6 +48,7 @@ export default function DashboardLayout({
               </div>
               <FloatingComposer />
             </div>
+            </ShortcutsProvider>
           </MailSearchProvider>
         </ComposeProvider>
       </MailboxProvider>

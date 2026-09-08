@@ -197,6 +197,13 @@
       "when": 1788796800000,
       "tag": "0027_add_domain_sending_intent",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1788850800000,
+      "tag": "0028_add_keyboard_shortcuts_setting",
+      "breakpoints": true
     }
   ]
 }

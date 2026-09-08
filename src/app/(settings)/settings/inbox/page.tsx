@@ -1,4 +1,5 @@
 import { InboxThreadingSettings } from "@/components/settings/inbox-threading-settings";
+import { InboxShortcutsSettings } from "@/components/settings/inbox-shortcuts-settings";
 import { MailboxAutoReplyForm } from "@/components/settings/mailbox-auto-reply-form";
 
 export default function SettingsInboxPage() {
@@ -11,6 +12,16 @@ export default function SettingsInboxPage() {
 				</div>
 				<div className="rounded-3xl bg-white p-6">
 					<InboxThreadingSettings />
+				</div>
+			</section>
+
+			<section className="space-y-4">
+				<div>
+					<h2 className="text-xl font-semibold text-neutral-900">Shortcuts</h2>
+					<p className="mt-1 text-sm text-neutral-500">Choose whether keyboard shortcuts are active.</p>
+				</div>
+				<div className="rounded-3xl bg-white p-6">
+					<InboxShortcutsSettings />
 				</div>
 			</section>
 

@@ -32,6 +32,7 @@ export async function GET(request: Request) {
 			canForwardEmail: entitlements.canForwardEmail,
 			role: user.role,
 			canManageMailboxes: user.canManageMailboxes,
+			keyboardShortcutsEnabled: user.keyboardShortcutsEnabled,
 			hasAvatar: !!user.avatarKey,
 		},
 		hasMailboxes,

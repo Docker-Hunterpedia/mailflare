@@ -1,9 +1,10 @@
 "use client";
 
-import { createElement, useState } from "react";
+import { createElement, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, Ban, BellOff, Forward, Mail, MailOpen, MoreVertical, Reply, ReplyAll, ShieldAlert, Trash2 } from "lucide-react";
 import { useCompose } from "@/components/compose/compose-context";
+import { useHotkeys } from "@/components/shortcuts";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
@@ -62,6 +63,58 @@ export function MessageActions({
 			setPendingAction(null);
 		}
 	}
+
+	const shortcuts = useMemo(
+		() => [
+			{
+				key: "e",
+				label: "Archive Message",
+				category: "Actions" as const,
+				action: () => {
+					if (status !== "archived") void runAction("archive");
+				},
+			},
+			{
+				key: "y",
+				label: "Archive Message",
+				category: "Actions" as const,
+				action: () => {
+					if (status !== "archived") void runAction("archive");
+				},
+			},
+			{
+				key: "#",
+				label: "Move to Trash",
+				category: "Actions" as const,
+				action: () => {
+					if (status !== "trash") void runAction("trash");
+				},
+			},
+			{
+				key: "r",
+				label: "Reply to Message",
+				category: "Composing" as const,
+				action: () => void handleReply("reply"),
+			},
+			{
+				key: "!",
+				label: "Report Spam",
+				category: "Actions" as const,
+				action: () => {
+					if (status !== "spam" && direction === "inbound") void runAction("spam");
+				},
+			},
+			{
+				key: "u",
+				label: "Back to List",
+				category: "Navigation" as const,
+				action: () => router.back(),
+			},
+		],
+		[status, direction, runAction, router]
+	);
+
+	useHotkeys(shortcuts);
 
 	async function onUnsubscribe() {
 		setMoreOpen(false);
@@ -171,12 +224,12 @@ export function MessageActions({
 		<div className="flex items-center gap-3 text-neutral-600">
 			{error && <span className="text-xs text-red-600">{error}</span>}
 			<div className="flex items-center gap-2">
-				<Tooltip label="Reply">
+				<Tooltip label="Reply (r)">
 					<Button
 						type="button"
 						variant="ghost"
 						size="sm"
-						aria-label="Reply"
+						aria-label="Reply (r)"
 						disabled={disabled}
 						onClick={() => handleReply("reply")}
 					>
@@ -211,33 +264,33 @@ export function MessageActions({
 						</Button>
 					</Tooltip>
 				)}
-				<Tooltip label="Archive">
+				<Tooltip label="Archive (e)">
 					<Button
 						variant="ghost"
 						size="sm"
-						aria-label="Archive"
+						aria-label="Archive (e)"
 						disabled={disabled || status === "archived"}
 						onClick={() => runAction("archive")}
 					>
 						<Archive className="h-5 w-5" />
 					</Button>
 				</Tooltip>
-				<Tooltip label="Report spam">
+				<Tooltip label="Report spam (!)">
 					<Button
 						variant="ghost"
 						size="sm"
-						aria-label="Report spam"
+						aria-label="Report spam (!)"
 						disabled={disabled || status === "spam" || direction !== "inbound"}
 						onClick={() => runAction("spam")}
 					>
 						<ShieldAlert className="h-5 w-5" />
 					</Button>
 				</Tooltip>
-				<Tooltip label="Delete">
+				<Tooltip label="Delete (#)">
 					<Button
 						variant="ghost"
 						size="sm"
-						aria-label="Move to trash"
+						aria-label="Move to trash (#)"
 						disabled={disabled || status === "trash"}
 						onClick={() => runAction("trash")}
 					>

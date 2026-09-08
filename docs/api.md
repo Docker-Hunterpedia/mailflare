@@ -57,6 +57,12 @@ Messages composed in Mailflare are sent as HTML with a plain-text alternative de
 
 The dashboard composer accepts up to 10 attachments, with a 10 MB limit per file and a 20 MB combined limit. Attachment metadata is stored in D1 and file content is stored in R2. Downloads require access to the mailbox containing the message.
 
+## JMAP
+
+Mailflare serves [JMAP](https://jmap.io) (RFC 8620 core and RFC 8621 mail, plus submission) so external mail apps can read and send mail. Discovery is at `/.well-known/jmap`, which redirects to `/jmap/session`. Authenticate with an API key that has the `jmap` scope, either as `Authorization: Bearer <key>` or as the password of HTTP Basic auth (the username is ignored). Settings > Account > Email apps mints such a key.
+
+The account id is the user id. Each Mailflare mailbox appears as a top-level JMAP Mailbox with system children (`inbox`, `drafts`, `sent`, `archive`, `junk`, `trash`) and one child per user folder; a message belongs to exactly one of them. Supported methods: `Mailbox/get|query|set` (folders only), `Thread/get`, `Email/get|query|set`, `SearchSnippet/get`, `Identity/get`, `EmailSubmission/set`, and `Core/echo`. `*/changes` return `cannotCalculateChanges`, so clients re-query on a state change; `/jmap/eventsource` pushes state changes by polling. `Email/set` creates drafts, updates `$seen` and `$flagged`, moves between mailboxes, and destroys (to Trash first, then permanently). `EmailSubmission/set` sends a draft and reports it destroyed, since the sent copy is a new message. Blob download and upload follow the Session's `downloadUrl` and `uploadUrl`.
+
 ## Real-time updates
 
 Mailflare uses a Durable Object WebSocket hub to notify connected users after an inbound message is stored. Mailbox owners, the domain administrator, and delegated users receive events for mailboxes they can access.

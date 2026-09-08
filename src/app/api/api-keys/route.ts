@@ -10,7 +10,7 @@ import { newId } from "@/lib/ids";
 
 const createKeySchema = z.object({
 	name: z.string().min(1),
-	scopes: z.array(z.enum(["send", "read"])).min(1),
+	scopes: z.array(z.enum(["send", "read", "jmap"])).min(1),
 });
 
 export async function GET(request: Request) {

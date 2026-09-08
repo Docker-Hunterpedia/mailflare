@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChangePasswordForm } from "./change-password-form";
+import { EmailClientsSettings } from "./email-clients-settings";
 import { ForwardingEmailForm } from "./forwarding-email-form";
 import { MailboxSignatureForm } from "./mailbox-signature-form";
 import { ProfileForm } from "./profile-form";
@@ -92,6 +93,16 @@ export function AccountSettings() {
 						<p className="mt-1 text-sm text-neutral-500">Use at least 8 characters for your new password.</p>
 					</div>
 					<ChangePasswordForm />
+				</div>
+			</section>
+
+			<section className="space-y-4">
+				<div>
+					<h2 className="text-xl font-semibold text-neutral-900">Email apps</h2>
+					<p className="mt-1 text-sm text-neutral-500">Use your mail from a desktop or mobile app over JMAP.</p>
+				</div>
+				<div className="space-y-4 rounded-3xl bg-white p-6">
+					<EmailClientsSettings />
 				</div>
 			</section>
 		</div>

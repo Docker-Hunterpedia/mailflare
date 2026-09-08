@@ -112,3 +112,15 @@ export async function updatePassword(currentPassword: string, newPassword: strin
 		throw new Error(typeof data.error === "string" ? data.error : "Failed to change password");
 	}
 }
+
+/** An API key limited to the JMAP scope, for external mail apps. */
+export async function createJmapApiKey(name: string): Promise<string> {
+	const res = await authFetch("/api/api-keys", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ name, scopes: ["jmap"] }),
+	});
+	const data = (await res.json()) as { key?: string; error?: unknown };
+	if (!res.ok || !data.key) throw new Error(typeof data.error === "string" ? data.error : "Could not create a key");
+	return data.key;
+}

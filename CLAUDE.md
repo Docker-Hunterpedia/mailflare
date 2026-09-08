@@ -79,6 +79,10 @@ Schema lives in one file: `src/db/schema/index.ts` (21 tables). Migrations are g
 
 The setup path only ever initializes an empty database — it refuses to touch one that already has tables.
 
+### JMAP lives in `src/lib/jmap/`
+
+`handleJmapRequest` (`src/lib/jmap/handler.ts`) owns `/jmap/*` and `/.well-known/jmap`; the Next routes under `src/app/jmap/[[...segments]]` and `src/app/.well-known/jmap` only delegate to it, and it is framework-free so it could be mounted from `worker.ts` too. Auth is an API key with the `jmap` scope via `authenticateApiRequest` (`src/lib/api/key-auth.ts`, the Next-free core that `src/lib/api/auth.ts` now wraps). JMAP Mailbox ids encode `mailboxId`, `mailboxId~role` or `mailboxId~f~folderId` (`ids.ts`); `email-query.ts` maps filters onto `messages` columns, `email-objects.ts` builds Email objects from stored rows (no MIME parsing), and states are digests of counts (`state.ts`), which is why every `/changes` method answers `cannotCalculateChanges`.
+
 ### Access control
 
 Two independent auth surfaces:

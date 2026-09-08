@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { messages } from "@/db/schema";
 import { storeMessageAttachments } from "@/lib/email/attachments";
 import { buildSnippet, parseRawMime } from "@/lib/email/parse";
+import { resolveThreadId } from "@/lib/email/threading";
 import { upsertContactFromAddress } from "@/lib/contacts/service";
 import { newId } from "@/lib/ids";
 import { getImportMessagePlacement } from "./destination";
@@ -77,13 +78,21 @@ async function importMessageToMailbox(
 		providerMessageId,
 		fromAddr,
 		toAddr,
+		ccAddr: parsed.ccAddr,
 		subject: parsed.subject,
 		snippet: buildSnippet(parsed.text, parsed.html),
 		textBody: parsed.text,
 		htmlBody: parsed.html,
 		status: placement.status,
 		read: placement.direction === "outbound",
-		threadId: parsed.messageId,
+		threadId: await resolveThreadId(db, {
+			mailboxId: input.mailboxId,
+			messageId: parsed.messageId,
+			inReplyTo: parsed.inReplyTo,
+			references: parsed.references,
+		}),
+		inReplyTo: parsed.inReplyTo,
+		references: parsed.references.length ? parsed.references.join(" ") : null,
 		createdAt,
 	});
 

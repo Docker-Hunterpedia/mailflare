@@ -14,11 +14,13 @@ import { usePageLoading } from "@/components/page-loading";
 import { useMessageCounts } from "@/hooks/use-message-counts";
 import { useMessages } from "@/hooks/use-messages";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
+import type { Message } from "@/hooks/types";
 import { setMessageDragData } from "@/lib/messages/drag-utils";
 import { BulkMessageToolbar } from "./bulk-message-toolbar";
 import { MessageListRowActions } from "./message-list-row-actions";
 import { dispatchMessageCountsDelta, toggleMessageStar } from "./message-list-row-actions-utils";
 import { MessageNavigationProgress, useMessageNavigation } from "./message-navigation";
+import { useConversationView } from "./use-conversation-view";
 import type { MessageFolderPageProps, MessageListRowProps } from "./types";
 import {
 	formatMessageListTimestamp,
@@ -26,10 +28,12 @@ import {
 	getMessageParty,
 	getMessagePartyClassName,
 	getMessagePreview,
+	isMessageListRowUnread,
 	formatEmailPageTitle,
 	getMailboxAddress,
 	runBulkMessageAction,
 } from "./utils";
+import clsx from "clsx";
 
 const pageSize = 25;
 
@@ -47,11 +51,13 @@ function MessageListRow({
 	const Icon = config.icon;
 	const { openDraftComposer } = useCompose();
 	const [read, setRead] = useState(message.read);
+	const [threadUnread, setThreadUnread] = useState(message.threadUnread);
 	const [starred, setStarred] = useState(message.starred);
 	useEffect(() => setRead(message.read), [message.read]);
+	useEffect(() => setThreadUnread(message.threadUnread), [message.threadUnread]);
 	useEffect(() => setStarred(message.starred), [message.starred]);
-	const rowMessage = { ...message, read, starred };
-	const unread = rowMessage.direction === "inbound" && !rowMessage.read;
+	const rowMessage = { ...message, read, starred, threadUnread };
+	const unread = isMessageListRowUnread(rowMessage);
 	const draggable = config.folder === "inbox" && message.direction === "inbound";
 	const party = getMessageParty(rowMessage, config.folder, currentAccountName);
 	const preview = getMessagePreview(rowMessage, config.folder);
@@ -59,27 +65,29 @@ function MessageListRow({
 	const navigation = useMessageNavigation(href, rowMessage);
 
 	function onMessageNavigate(event: MouseEvent<HTMLAnchorElement>) {
-		if (unread && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+		if (!read && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+			const previousThreadUnread = threadUnread;
 			setRead(true);
-			dispatchMessageCountsDelta({ inboxUnreadDelta: -1 });
+			if (previousThreadUnread !== undefined) setThreadUnread(Math.max(0, previousThreadUnread - 1));
+			if (message.direction === "inbound") dispatchMessageCountsDelta({ inboxUnreadDelta: -1 });
 			void runBulkMessageAction([message.id], "read", false).catch(() => {
 				setRead(false);
-				dispatchMessageCountsDelta({ inboxUnreadDelta: 1 });
+				setThreadUnread(previousThreadUnread);
+				if (message.direction === "inbound") dispatchMessageCountsDelta({ inboxUnreadDelta: 1 });
 			});
 		}
-		navigation.onNavigate(event, unread);
+		navigation.onNavigate(event, !read);
 	}
 
 	if (compact && config.folder !== "drafts") {
 		return (
 			<div
-				className={`group grid grid-cols-[20px_minmax(0,1fr)] gap-3 border-l-2 px-4 py-3 transition-colors ${
-					active
-						? "border-l-blue-600 bg-blue-50"
-						: selected
-							? "border-l-transparent bg-neutral-50"
-							: "border-l-transparent hover:bg-neutral-50"
-				} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
+				className={`group grid grid-cols-[20px_minmax(0,1fr)] gap-3 border-l-2 px-4 py-3 transition-colors ${active
+					? "border-l-blue-600 bg-blue-50"
+					: selected
+						? "border-l-transparent bg-neutral-50"
+						: "border-l-transparent hover:bg-neutral-50"
+					} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`}
 				draggable={draggable}
 				onDragStart={(event) => {
 					if (!draggable) return;
@@ -95,17 +103,20 @@ function MessageListRow({
 				/>
 				<Link href={href} onClick={onMessageNavigate} className="min-w-0">
 					<span className="flex items-baseline justify-between gap-3">
-						<span className={getMessagePartyClassName(message, config.folder)}>
+						<span className={clsx(unread && "font-semibold",getMessagePartyClassName(message, config.folder))}>
 							{party}
+
+							{(message.threadCount ?? 1) > 1 && (
+								<span className="ml-2 text-xs font-normal text-neutral-500">{message.threadCount}</span>
+							)}
 						</span>
-						<span className="shrink-0 text-[11px] text-neutral-400">
+						<span className={clsx(unread ?"font-medium":"text-neutral-400","shrink-0 text-[11px]")}>
 							{formatMessageListTimestamp(message.createdAt)}
 						</span>
 					</span>
 					<span
-						className={`mt-1 block truncate text-sm ${
-							unread ? "font-semibold text-neutral-900" : "text-neutral-700"
-						}`}
+						className={`mt-1 block truncate text-sm ${unread ? "font-semibold text-neutral-900" : "text-neutral-700"
+							}`}
 					>
 						{message.subject ?? "(no subject)"}
 					</span>
@@ -118,8 +129,7 @@ function MessageListRow({
 	}
 
 	const className =
-		`group relative grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto] items-center gap-3 px-6 text-left text-sm hover:z-10 hover:bg-[#f2f6fc] hover:shadow-sm ${
-			active || selected ? "bg-blue-50" : ""
+		`group relative grid min-h-12 w-full grid-cols-[24px_32px_minmax(160px,240px)_1fr_auto] items-center gap-3 px-6 text-left text-sm hover:z-10 hover:bg-[#f2f6fc] hover:shadow-sm ${active || selected ? "bg-blue-50" : ""
 		} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`;
 	const content = (
 		<>
@@ -143,20 +153,23 @@ function MessageListRow({
 			{(config.folder !== "inbox" || message.direction !== "inbound") && (
 				<Icon className="h-4 w-4 text-neutral-300" />
 			)}
-			<span className={getMessagePartyClassName(rowMessage, config.folder)}>
+			<span className={clsx(unread && "font-semibold", getMessagePartyClassName(rowMessage, config.folder))}>
 				{party}
+
+				{(message.threadCount ?? 1) > 1 && (
+					<span className="ml-2 text-xs text-neutral-500">{message.threadCount}</span>
+				)}
 			</span>
 			<span className="truncate text-neutral-700">
-				<span className={unread ? "font-bold text-neutral-900" : ""}>
+				<span className={unread ? "font-semibold text-neutral-900" : ""}>
 					{rowMessage.subject ?? "(no subject)"}
 				</span>
 				<span className="text-neutral-500"> - {getMessagePreview(rowMessage, config.folder)}</span>
 			</span>
 			<time
 				dateTime={message.createdAt}
-				className={`min-w-[96px] whitespace-nowrap text-right text-xs group-hover:opacity-0 ${
-					unread ? "font-semibold text-neutral-800" : "text-neutral-500"
-				}`}
+				className={`min-w-[96px] whitespace-nowrap text-right text-xs group-hover:opacity-0 ${unread ? "font-semibold text-neutral-800" : "text-neutral-500"
+					}`}
 			>
 				{formatMessageListTimestamp(message.createdAt)}
 			</time>
@@ -237,11 +250,14 @@ export function MessageFolderPage({
 	>([]);
 	const [pendingBulkAction, setPendingBulkAction] = useState(false);
 	const [unreadOnly, setUnreadOnly] = useState(false);
+	const [conversationView] = useConversationView();
+	const grouped = conversationView && config.folder !== "drafts";
 	const { messages, isLoading, total, limit, updateMessages } = useMessages(config.folder, selectedMailbox?.id, {
 		query,
 		limit: pageSize,
 		offset,
 		read: unreadOnly ? "unread" : "all",
+		group: grouped ? "thread" : undefined,
 	}, !mailboxesLoading, config.folderId);
 	const { counts } = useMessageCounts(selectedMailbox?.id, !mailboxesLoading);
 	usePageLoading(mailboxesLoading || isLoading);
@@ -264,11 +280,16 @@ export function MessageFolderPage({
 	);
 	const hasUnreadSelection = selectedMessages.some((message) => !message.read);
 	const allVisibleSelected = messages.length > 0 && messages.every((message) => selectedIds.includes(message.id));
+	// In conversation view a row stands for every message of its thread in this
+	// folder, so actions and drags carry all of them.
+	const rowMessageIds = (message: Message) => message.threadMessageIds ?? [message.id];
+	const expandSelectedIds = (ids: string[]) =>
+		ids.flatMap((id) => rowMessageIds(messages.find((message) => message.id === id) ?? { id } as Message));
 
 	useEffect(() => {
 		setOffset(0);
 		setSelectedMessages([]);
-	}, [query, selectedMailbox?.id, config.folder, config.folderId, unreadOnly]);
+	}, [query, selectedMailbox?.id, config.folder, config.folderId, unreadOnly, grouped]);
 
 	useEffect(() => {
 		setSelectedMessages([]);
@@ -291,7 +312,7 @@ export function MessageFolderPage({
 		setSelectedMessages((current) => {
 			if (!selected) return current.filter((item) => item.id !== messageId);
 			if (current.some((item) => item.id === messageId)) return current;
-			return [...current, { id: message.id, read: message.read }];
+			return [...current, { id: message.id, read: message.read && !(message.threadUnread ?? 0) }];
 		});
 	}
 
@@ -304,7 +325,7 @@ export function MessageFolderPage({
 
 			const next = new Map(current.map((message) => [message.id, message]));
 			for (const message of messages) {
-				next.set(message.id, { id: message.id, read: message.read });
+				next.set(message.id, { id: message.id, read: message.read && !(message.threadUnread ?? 0) });
 			}
 			return Array.from(next.values());
 		});
@@ -330,7 +351,7 @@ export function MessageFolderPage({
 			if (inboxUnreadDelta) dispatchMessageCountsDelta({ inboxUnreadDelta });
 		}
 		try {
-			await runBulkMessageAction(selectedIds, action);
+			await runBulkMessageAction(expandSelectedIds(selectedIds), action);
 			setSelectedMessages([]);
 		} catch (error) {
 			if (readValue !== null) {
@@ -438,8 +459,10 @@ export function MessageFolderPage({
 						compact={compact}
 						currentAccountName={currentAccountName}
 						onSelectedChange={updateSelectedMessage}
-						onMessageAction={(messageId, action) => runBulkMessageAction([messageId], action, action !== "read" && action !== "unread")}
-						dragMessageIds={selectedIds.includes(message.id) ? selectedIds : [message.id]}
+						onMessageAction={(messageId, action) =>
+							runBulkMessageAction(expandSelectedIds([messageId]), action, action !== "read" && action !== "unread")
+						}
+						dragMessageIds={expandSelectedIds(selectedIds.includes(message.id) ? selectedIds : [message.id])}
 					/>
 				))}
 				{!isLoading && messages.length === 0 && (

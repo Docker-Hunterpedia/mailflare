@@ -109,6 +109,101 @@ export async function storeMessageAttachments(
 	return stored;
 }
 
+/**
+ * Duplicate a message's attachments onto another message (a forward draft).
+ * R2 keys are unique per row, so the objects are copied rather than shared,
+ * which keeps deleting the draft from touching the original.
+ */
+export async function copyMessageAttachments(
+	env: CloudflareEnv,
+	fromMessageId: string,
+	toMessageId: string,
+): Promise<AttachmentMetadata[]> {
+	const db = getDb(env);
+	const rows = await db.select().from(messageAttachments).where(eq(messageAttachments.messageId, fromMessageId));
+	const copied: AttachmentMetadata[] = [];
+	for (const row of rows) {
+		const object = await env.BUCKET.get(row.r2Key);
+		if (!object) continue;
+		const id = newId("att");
+		const r2Key = `attachments/${toMessageId}/${id}/${row.filename}`;
+		await env.BUCKET.put(r2Key, await object.arrayBuffer(), {
+			httpMetadata: { contentType: row.contentType },
+			customMetadata: { filename: row.filename, messageId: toMessageId },
+		});
+		await db.insert(messageAttachments).values({
+			id,
+			messageId: toMessageId,
+			filename: row.filename,
+			contentType: row.contentType,
+			size: row.size,
+			disposition: row.disposition,
+			contentId: row.contentId,
+			r2Key,
+		});
+		copied.push({
+			id,
+			messageId: toMessageId,
+			filename: row.filename,
+			type: row.contentType,
+			size: row.size,
+			disposition: row.disposition as "attachment" | "inline",
+			contentId: row.contentId,
+		});
+	}
+	return copied;
+}
+
+/** Attachments with their bytes, for handing a draft's files to the send path. */
+export async function loadMessageAttachmentContents(
+	env: CloudflareEnv,
+	messageId: string,
+): Promise<AttachmentContent[]> {
+	const db = getDb(env);
+	const rows = await db.select().from(messageAttachments).where(eq(messageAttachments.messageId, messageId));
+	const result: AttachmentContent[] = [];
+	for (const row of rows) {
+		const object = await env.BUCKET.get(row.r2Key);
+		if (!object) continue;
+		result.push({
+			filename: row.filename,
+			type: row.contentType,
+			content: await object.arrayBuffer(),
+			disposition: row.disposition as "attachment" | "inline",
+			contentId: row.contentId,
+		});
+	}
+	return result;
+}
+
+/** Remove one attachment (row and object). Returns false when it is not on that message. */
+export async function deleteMessageAttachment(
+	env: CloudflareEnv,
+	messageId: string,
+	attachmentId: string,
+): Promise<boolean> {
+	const db = getDb(env);
+	const [row] = await db
+		.select({ r2Key: messageAttachments.r2Key })
+		.from(messageAttachments)
+		.where(and(eq(messageAttachments.id, attachmentId), eq(messageAttachments.messageId, messageId)))
+		.limit(1);
+	if (!row) return false;
+	await db.delete(messageAttachments).where(eq(messageAttachments.id, attachmentId));
+	await env.BUCKET.delete(row.r2Key);
+	return true;
+}
+
+/** Remove every attachment object of a message; the rows cascade with the message row. */
+export async function deleteMessageAttachmentObjects(env: CloudflareEnv, messageId: string): Promise<void> {
+	const db = getDb(env);
+	const rows = await db
+		.select({ r2Key: messageAttachments.r2Key })
+		.from(messageAttachments)
+		.where(eq(messageAttachments.messageId, messageId));
+	await Promise.all(rows.map((row) => env.BUCKET.delete(row.r2Key)));
+}
+
 export async function listMessageAttachments(
 	env: CloudflareEnv,
 	messageId: string,

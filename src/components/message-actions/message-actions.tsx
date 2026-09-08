@@ -2,19 +2,23 @@
 
 import { createElement, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, Ban, BellOff, Mail, MailOpen, MoreVertical, Reply, ShieldAlert, Trash2 } from "lucide-react";
+import { Archive, Ban, BellOff, Forward, Mail, MailOpen, MoreVertical, Reply, ReplyAll, ShieldAlert, Trash2 } from "lucide-react";
 import { useCompose } from "@/components/compose/compose-context";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { BulkMessageAction } from "@/app/api/messages/bulk/types";
-import type { MessageActionsProps } from "./types";
+import type { MessageActionsProps, ReplyMode } from "./types";
 import {
 	confirmTrashWithoutUnsubscribe,
 	blockMessageContact,
+	createForwardDraft,
 	createReplyDraft,
 	createTrashSenderRule,
 	getMessageActionRedirect,
 	getMoveMessageActions,
+	getReplyRecipients,
+	getReplyThreading,
+	hasAdditionalRecipients,
 	openUnsubscribeUrl,
 	runSingleMessageAction,
 } from "./utils";
@@ -30,11 +34,15 @@ export function MessageActions({
 	subject,
 	bodyText,
 	ownAddress,
+	ownAddresses = [],
+	message,
+	messageMeta,
+	bodyHtml,
 }: MessageActionsProps) {
 	const router = useRouter();
 	const { openDraftComposer } = useCompose();
 	const [pendingAction, setPendingAction] = useState<
-		BulkMessageAction | "unsubscribe" | "reply" | "block" | null
+		BulkMessageAction | "unsubscribe" | ReplyMode | "forward" | "block" | null
 	>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [moreOpen, setMoreOpen] = useState(false);
@@ -80,8 +88,19 @@ export function MessageActions({
 		}
 	}
 
-	async function handleReply() {
-		setPendingAction("reply");
+	const replyable = message ?? {
+		direction,
+		fromAddr: senderAddress,
+		toAddr: "",
+		ccAddr: null,
+		providerMessageId: null,
+		references: null,
+		threadId: null,
+	};
+	const canReplyAll = hasAdditionalRecipients(replyable, ownAddresses);
+
+	async function handleReply(mode: ReplyMode) {
+		setPendingAction(mode);
 		setError(null);
 		try {
 			const draftId = await createReplyDraft({
@@ -90,10 +109,34 @@ export function MessageActions({
 				ownAddress,
 				subject,
 				bodyText,
+				bodyHtml,
+				sentAt: messageMeta?.createdAt,
+				recipients: getReplyRecipients(replyable, ownAddresses, mode),
+				threading: getReplyThreading(replyable),
 			});
 			openDraftComposer(draftId);
 		} catch (replyError) {
 			setError(replyError instanceof Error ? replyError.message : "Could not start reply");
+		} finally {
+			setPendingAction(null);
+		}
+	}
+
+	async function handleForward() {
+		if (!message || !messageMeta) return;
+		setPendingAction("forward");
+		setError(null);
+		try {
+			const draftId = await createForwardDraft({
+				mailboxId,
+				ownAddress,
+				message: { ...message, ...messageMeta },
+				bodyText,
+				bodyHtml,
+			});
+			openDraftComposer(draftId);
+		} catch (forwardError) {
+			setError(forwardError instanceof Error ? forwardError.message : "Could not start forward");
 		} finally {
 			setPendingAction(null);
 		}
@@ -135,11 +178,39 @@ export function MessageActions({
 						size="sm"
 						aria-label="Reply"
 						disabled={disabled}
-						onClick={handleReply}
+						onClick={() => handleReply("reply")}
 					>
 						<Reply className="h-5 w-5" />
 					</Button>
 				</Tooltip>
+				{canReplyAll && (
+					<Tooltip label="Reply all">
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							aria-label="Reply all"
+							disabled={disabled}
+							onClick={() => handleReply("replyAll")}
+						>
+							<ReplyAll className="h-5 w-5" />
+						</Button>
+					</Tooltip>
+				)}
+				{message && messageMeta && (
+					<Tooltip label="Forward">
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							aria-label="Forward"
+							disabled={disabled}
+							onClick={() => void handleForward()}
+						>
+							<Forward className="h-5 w-5" />
+						</Button>
+					</Tooltip>
+				)}
 				<Tooltip label="Archive">
 					<Button
 						variant="ghost"

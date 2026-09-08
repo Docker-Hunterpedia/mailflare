@@ -68,6 +68,7 @@ export function getMessageQueryParams(
 	if (parsedFilters?.read && parsedFilters.read !== "all") params.set("read", parsedFilters.read);
 	if (filters?.limit) params.set("limit", String(filters.limit));
 	if (filters?.offset) params.set("offset", String(filters.offset));
+	if (filters?.group) params.set("group", filters.group);
 
 	return params;
 }

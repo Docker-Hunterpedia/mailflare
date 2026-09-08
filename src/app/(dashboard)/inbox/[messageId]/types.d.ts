@@ -24,5 +24,7 @@ export type MessageAttachment = {
 
 export type MessageBodyDisplay = ReplyContentParts & {
 	htmlBody: string | null;
+	/** Quoted/forwarded HTML a Mailflare composer folded under the message, shown collapsed. */
+	quotedHtml: string | null;
 	hasQuotedContent: boolean;
 };

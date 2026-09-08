@@ -56,7 +56,7 @@ export function useMessages(
 			window.removeEventListener("mailflare:messages-changed", onMessagesChanged);
 			window.clearInterval(refreshInterval);
 		};
-	}, [enabled, filters?.limit, filters?.offset, filters?.query, filters?.read, filters?.title, folder, folderId, mailboxId]);
+	}, [enabled, filters?.group, filters?.limit, filters?.offset, filters?.query, filters?.read, filters?.title, folder, folderId, mailboxId]);
 
 	return { messages, unreadCount, isLoading, total, limit, offset, updateMessages: setMessages };
 }

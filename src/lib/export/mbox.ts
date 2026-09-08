@@ -21,6 +21,9 @@ export async function exportMailboxToMbox(env: CloudflareEnv, mailboxId: string)
 			id: messages.id,
 			fromAddr: messages.fromAddr,
 			toAddr: messages.toAddr,
+			ccAddr: messages.ccAddr,
+			inReplyTo: messages.inReplyTo,
+			references: messages.references,
 			subject: messages.subject,
 			providerMessageId: messages.providerMessageId,
 			direction: messages.direction,
@@ -43,6 +46,11 @@ export async function exportMailboxToMbox(env: CloudflareEnv, mailboxId: string)
 			`Date: ${date.toUTCString()}`,
 			`From: ${escapeHeader(message.fromAddr)}`,
 			`To: ${escapeHeader(message.toAddr)}`,
+			...(message.ccAddr ? [`Cc: ${escapeHeader(message.ccAddr)}`] : []),
+			...(message.inReplyTo ? [`In-Reply-To: <${escapeHeader(message.inReplyTo)}>`] : []),
+			...(message.references
+				? [`References: ${message.references.split(/\s+/).filter(Boolean).map((id) => `<${id}>`).join(" ")}`]
+				: []),
 			`Subject: ${escapeHeader(message.subject)}`,
 			`X-Mailflare-Direction: ${escapeHeader(message.direction)}`,
 			`X-Mailflare-Status: ${escapeHeader(message.status)}`,

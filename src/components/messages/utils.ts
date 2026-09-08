@@ -1,6 +1,6 @@
 import type { Message } from "@/hooks/types";
 import { authFetch } from "@/lib/auth/client";
-import { getEmailDisplayName } from "@/lib/email/address";
+import { getEmailDisplayName, splitEmailAddressList } from "@/lib/email/address";
 import dayjs from "dayjs";
 import type { MailboxOption } from "@/components/mailbox-provider";
 import type { EmailPageTitleInput } from "./types";
@@ -13,16 +13,30 @@ export function getMessageParty(
 	currentAccountName?: string,
 ) {
 	if (folder === "drafts") return "Draft";
-	if (folder === "sent") return message.toContactName ?? (message.toAddr ? getEmailDisplayName(message.toAddr) : "No recipient");
+	if (folder === "sent") return formatRecipientSummary(message.toAddr, message.toContactName);
 	if (message.direction === "outbound" && currentAccountName) return currentAccountName;
 	return message.fromContactName ?? (message.fromAddr ? getEmailDisplayName(message.fromAddr) : "Unknown sender");
+}
+
+/** "Maya Chen, +2" for a multi-recipient message, or just the one name. */
+export function formatRecipientSummary(toAddr: string, firstContactName?: string | null): string {
+	const entries = splitEmailAddressList(toAddr);
+	if (entries.length === 0) return "No recipient";
+	const first = firstContactName ?? getEmailDisplayName(entries[0]);
+	return entries.length > 1 ? `${first}, +${entries.length - 1}` : first;
 }
 
 export function getMessagePartyClassName(message: Message, folder: MessageFolderConfig["folder"]) {
 	if (folder === "drafts") return "truncate font-semibold text-red-600";
 
-	const unread = message.direction === "inbound" && !message.read;
+	const unread = isMessageListRowUnread(message);
 	return `truncate ${unread ? "font-bold text-neutral-900" : "text-neutral-800"}`;
+}
+
+/** A grouped row is read only after every message represented by it is read. */
+export function isMessageListRowUnread(message: Message): boolean {
+	if (message.threadMessageIds) return (message.threadUnread ?? 0) > 0;
+	return message.direction === "inbound" && !message.read;
 }
 
 export function getMessagePreview(message: Message, folder: MessageFolderConfig["folder"]) {

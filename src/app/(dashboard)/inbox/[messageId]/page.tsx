@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { MarkAsRead } from "@/components/mark-read";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
 import { ContactDetailsTrigger } from "@/components/contacts/contact-details";
+import { ContactAvatar } from "@/components/contacts/contact-avatar";
 import { MessageActions } from "@/components/message-actions/message-actions";
 import { MessageAttachmentViewer } from "@/components/message-attachment-viewer";
 import { MessageAttachmentCard } from "@/components/message-attachment-card";
@@ -181,43 +182,54 @@ export default function MessageDetailPage() {
       />
       <article className="px-6 py-4">
         <div className="flex items-start justify-between pb-5">
-          <div>
-            <p className="text-sm text-neutral-900 mt-1.25">
-              <b>
-                {message.direction === "inbound" ? (
-                  <ContactDetailsTrigger
-                    mailboxId={message.mailboxId}
-                    address={message.fromAddr}
-                    name={fromName}
-                  />
+          <div className="flex min-w-0 items-start gap-3">
+            <ContactAvatar
+              mailboxId={message.mailboxId}
+              address={message.fromAddr}
+              name={fromName}
+              hasManagedAvatar={message.direction === "inbound"}
+              managedAvatarUrl={message.direction === "outbound" && message.mailboxId
+                ? `/api/mailboxes/${message.mailboxId}/avatar`
+                : undefined}
+            />
+            <div>
+              <p className="text-sm text-neutral-900 mt-1.25">
+                <b>
+                  {message.direction === "inbound" ? (
+                    <ContactDetailsTrigger
+                      mailboxId={message.mailboxId}
+                      address={message.fromAddr}
+                      name={fromName}
+                    />
+                  ) : (
+                    fromName
+                  )}
+                </b>{" "}
+                <span className="text-neutral-500">&lt;{fromAddress}&gt;</span>
+              </p>
+              <p className="text-xs text-neutral-500">
+                to{" "}
+                {message.direction === "inbound" && toEntries.length <= 1 ? (
+                  toName
                 ) : (
-                  fromName
+                  <RecipientList
+                    entries={toEntries}
+                    mailboxId={message.mailboxId}
+                    firstName={message.direction === "outbound" ? toName : undefined}
+                  />
                 )}
-              </b>{" "}
-              <span className="text-neutral-500">&lt;{fromAddress}&gt;</span>
-            </p>
-            <p className="text-xs text-neutral-500">
-              to{" "}
-              {message.direction === "inbound" && toEntries.length <= 1 ? (
-                toName
-              ) : (
-                <RecipientList
-                  entries={toEntries}
-                  mailboxId={message.mailboxId}
-                  firstName={message.direction === "outbound" ? toName : undefined}
-                />
+              </p>
+              {ccEntries.length > 0 && (
+                <p className="text-xs text-neutral-500">
+                  cc <RecipientList entries={ccEntries} mailboxId={message.mailboxId} />
+                </p>
               )}
-            </p>
-            {ccEntries.length > 0 && (
-              <p className="text-xs text-neutral-500">
-                cc <RecipientList entries={ccEntries} mailboxId={message.mailboxId} />
-              </p>
-            )}
-            {bccEntries.length > 0 && (
-              <p className="text-xs text-neutral-500">
-                bcc <RecipientList entries={bccEntries} mailboxId={message.mailboxId} />
-              </p>
-            )}
+              {bccEntries.length > 0 && (
+                <p className="text-xs text-neutral-500">
+                  bcc <RecipientList entries={bccEntries} mailboxId={message.mailboxId} />
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <p className="text-xs">

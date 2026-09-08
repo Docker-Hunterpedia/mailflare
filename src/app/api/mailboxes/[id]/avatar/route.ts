@@ -1,15 +1,17 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { mailboxes } from "@/db/schema";
+import { mailboxes, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth/cookies";
 import { getEnv } from "@/lib/cloudflare";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import {
 	ALLOWED_AVATAR_TYPES,
 	MAX_AVATAR_SIZE,
+	avatarKeyFor,
 	isUploadedAvatarFile,
 } from "@/app/api/profile/avatar/utils";
+import { syncPersonalIdentity } from "@/lib/profile/sync";
 import type { MailboxAvatarRouteParams } from "./types";
 import { mailboxAvatarKeyFor } from "./utils";
 
@@ -22,13 +24,19 @@ export async function GET(request: Request, { params }: MailboxAvatarRouteParams
 	if (!access?.canRead) return new Response("Not found", { status: 404 });
 
 	const [mailbox] = await db
-		.select({ avatarKey: mailboxes.avatarKey })
+		.select({
+			avatarKey: mailboxes.avatarKey,
+			type: mailboxes.type,
+			ownerAvatarKey: users.avatarKey,
+		})
 		.from(mailboxes)
+		.innerJoin(users, eq(mailboxes.userId, users.id))
 		.where(eq(mailboxes.id, id))
 		.limit(1);
-	if (!mailbox?.avatarKey) return new Response("Not found", { status: 404 });
+	const avatarKey = mailbox?.type === "personal" ? mailbox.ownerAvatarKey : mailbox?.avatarKey;
+	if (!avatarKey) return new Response("Not found", { status: 404 });
 
-	const object = await env.BUCKET.get(mailbox.avatarKey);
+	const object = await env.BUCKET.get(avatarKey);
 	if (!object) return new Response("Not found", { status: 404 });
 
 	const headers = new Headers();
@@ -66,10 +74,26 @@ export async function POST(request: Request, { params }: MailboxAvatarRouteParam
 		return NextResponse.json({ error: "Image must be 2 MB or smaller" }, { status: 413 });
 	}
 
-	const key = mailboxAvatarKeyFor(id);
+	const [mailbox] = await db
+		.select({ userId: mailboxes.userId, type: mailboxes.type, ownerName: users.name })
+		.from(mailboxes)
+		.innerJoin(users, eq(mailboxes.userId, users.id))
+		.where(eq(mailboxes.id, id))
+		.limit(1);
+	if (!mailbox) return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+
+	const key = mailbox.type === "personal" ? avatarKeyFor(mailbox.userId) : mailboxAvatarKeyFor(id);
 	await env.BUCKET.put(key, await file.arrayBuffer(), {
 		httpMetadata: { contentType: file.type },
 	});
-	await db.update(mailboxes).set({ avatarKey: key }).where(eq(mailboxes.id, id));
+	if (mailbox.type === "personal") {
+		await syncPersonalIdentity(db, {
+			userId: mailbox.userId,
+			name: mailbox.ownerName,
+			avatarKey: key,
+		});
+	} else {
+		await db.update(mailboxes).set({ avatarKey: key }).where(eq(mailboxes.id, id));
+	}
 	return NextResponse.json({ ok: true });
 }

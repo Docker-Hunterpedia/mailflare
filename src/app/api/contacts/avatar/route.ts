@@ -10,8 +10,10 @@ import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import {
 	ALLOWED_AVATAR_TYPES,
 	MAX_AVATAR_SIZE,
+	avatarKeyFor,
 	isUploadedAvatarFile,
 } from "@/app/api/profile/avatar/utils";
+import { getPersonalIdentityForAddress, syncPersonalIdentity } from "@/lib/profile/sync";
 import { contactAvatarKeyFor } from "./utils";
 
 export async function GET(request: Request) {
@@ -25,14 +27,16 @@ export async function GET(request: Request) {
 	const db = getDb(env);
 	const access = await getMailboxAccessLevel(db, user, mailboxId);
 	if (!access?.canRead) return new Response("Not found", { status: 404 });
+	const account = await getPersonalIdentityForAddress(db, access.mailbox.userId, email);
 	const [contact] = await db
 		.select({ avatarKey: contacts.avatarKey })
 		.from(contacts)
 		.where(and(eq(contacts.userId, access.mailbox.userId), eq(contacts.email, email)))
 		.limit(1);
-	if (!contact?.avatarKey) return new Response("Not found", { status: 404 });
+	const avatarKey = account ? account.avatarKey : contact?.avatarKey;
+	if (!avatarKey) return new Response("Not found", { status: 404 });
 
-	const object = await env.BUCKET.get(contact.avatarKey);
+	const object = await env.BUCKET.get(avatarKey);
 	if (!object) return new Response("Not found", { status: 404 });
 	const headers = new Headers();
 	headers.set("Content-Type", object.httpMetadata?.contentType ?? "application/octet-stream");
@@ -69,6 +73,18 @@ export async function POST(request: Request) {
 	const db = getDb(env);
 	const access = await getMailboxAccessLevel(db, user, mailboxId);
 	if (!access?.canManage) return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+	const account = await getPersonalIdentityForAddress(db, access.mailbox.userId, email);
+	if (account) {
+		if (account.userId !== user.id) {
+			return NextResponse.json({ error: "Only the account owner can change this contact" }, { status: 403 });
+		}
+		const key = avatarKeyFor(account.userId);
+		await env.BUCKET.put(key, await file.arrayBuffer(), {
+			httpMetadata: { contentType: file.type },
+		});
+		await syncPersonalIdentity(db, { ...account, avatarKey: key });
+		return NextResponse.json({ ok: true });
+	}
 	const [existing] = await db
 		.select({ id: contacts.id })
 		.from(contacts)
@@ -105,6 +121,15 @@ export async function DELETE(request: Request) {
 	const db = getDb(env);
 	const access = await getMailboxAccessLevel(db, user, mailboxId);
 	if (!access?.canManage) return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+	const account = await getPersonalIdentityForAddress(db, access.mailbox.userId, email);
+	if (account) {
+		if (account.userId !== user.id) {
+			return NextResponse.json({ error: "Only the account owner can change this contact" }, { status: 403 });
+		}
+		if (account.avatarKey) await env.BUCKET.delete(account.avatarKey);
+		await syncPersonalIdentity(db, { ...account, avatarKey: null });
+		return NextResponse.json({ ok: true });
+	}
 	const [contact] = await db
 		.select({ avatarKey: contacts.avatarKey })
 		.from(contacts)

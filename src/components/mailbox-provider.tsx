@@ -18,6 +18,7 @@ import {
 	getClientSessionToken,
 } from "@/lib/auth/client";
 import { PROFILE_NAME_CHANGED_EVENT } from "@/lib/profile/name-client";
+import { PROFILE_AVATAR_CHANGED_EVENT } from "@/lib/profile/avatar-client";
 import type { ProfileNameChangedDetail } from "@/lib/profile/types";
 
 export type MailboxOption = {
@@ -116,6 +117,21 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 
 		window.addEventListener(PROFILE_NAME_CHANGED_EVENT, updatePersonalMailboxNames);
 		return () => window.removeEventListener(PROFILE_NAME_CHANGED_EVENT, updatePersonalMailboxNames);
+	}, []);
+
+	useEffect(() => {
+		function updatePersonalMailboxAvatars() {
+			clearMailboxesCache();
+			setMailboxes((items) => items.map((mailbox) => (
+				mailbox.type === "personal" ? { ...mailbox, hasAvatar: true } : mailbox
+			)));
+			setSelectedMailboxState((mailbox) => (
+				mailbox?.type === "personal" ? { ...mailbox, hasAvatar: true } : mailbox
+			));
+		}
+
+		window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, updatePersonalMailboxAvatars);
+		return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, updatePersonalMailboxAvatars);
 	}, []);
 
 	const setSelectedMailbox = useCallback((mb: MailboxOption | null) => {

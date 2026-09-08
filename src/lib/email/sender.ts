@@ -20,6 +20,8 @@ export async function getAuthorizedSenderAddress(
 		.select({
 		localPart: mailboxes.localPart,
 		displayName: mailboxes.displayName,
+		type: mailboxes.type,
+		ownerName: users.name,
 		hostname: domains.hostname,
 		domainId: mailboxes.domainId,
 		useAllDomains: mailboxes.useAllDomains,
@@ -27,6 +29,7 @@ export async function getAuthorizedSenderAddress(
 		})
 		.from(mailboxes)
 		.innerJoin(domains, eq(mailboxes.domainId, domains.id))
+		.innerJoin(users, eq(mailboxes.userId, users.id))
 		.where(eq(mailboxes.id, input.mailboxId))
 		.limit(1);
 
@@ -45,15 +48,16 @@ export async function getAuthorizedSenderAddress(
 		throw new Error("Sender address does not match the selected mailbox");
 	}
 	const senderAddress = requestedAddress.toLowerCase();
+	const senderName = mailbox.type === "personal" ? mailbox.ownerName : mailbox.displayName;
 
 	if (access.canSendAs) {
 		return {
-			fromAddr: formatEmailAddress(senderAddress, mailbox.displayName),
+			fromAddr: formatEmailAddress(senderAddress, senderName),
 			mailboxId: mailbox.id,
 		};
 	}
 
-	const mailboxName = mailbox.displayName || senderAddress;
+	const mailboxName = senderName || senderAddress;
 	return {
 		fromAddr: formatEmailAddress(senderAddress, `${actor.name} on behalf of ${mailboxName}`),
 		mailboxId: mailbox.id,

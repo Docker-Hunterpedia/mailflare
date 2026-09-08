@@ -86,7 +86,7 @@ export function ContactAvatarForm({
 				</button>
 				<div>
 					<p className="text-sm font-medium text-neutral-900">Profile picture</p>
-					<p className="text-xs text-neutral-500">Upload a contact photo to override Gravatar.</p>
+					<p className="text-xs text-neutral-500">Upload a custom contact photo.</p>
 					{hasAvatar && (
 						<button type="button" onClick={() => void onRemove()} disabled={busy} className="mt-1 text-xs font-medium text-blue-600 hover:underline disabled:text-neutral-400">
 							Remove photo

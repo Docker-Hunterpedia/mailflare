@@ -175,7 +175,9 @@ export async function GET(request: Request) {
 	const mailboxNameMap = new Map(
 		accessibleMailboxes.map((mailbox) => [
 			mailbox.id,
-			mailbox.displayName ?? mailbox.localPart,
+			mailbox.userId === user.id && mailbox.type === "personal"
+				? user.name
+				: mailbox.displayName ?? mailbox.localPart,
 		]),
 	);
 	const contactMapsByUserId = new Map(

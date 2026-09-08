@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth/cookies";
 import { getEnv } from "@/lib/cloudflare";
+import { syncPersonalIdentity } from "@/lib/profile/sync";
 import {
 	ALLOWED_AVATAR_TYPES,
 	MAX_AVATAR_SIZE,
@@ -57,7 +56,11 @@ export async function POST(request: Request) {
 	await env.BUCKET.put(key, await file.arrayBuffer(), {
 		httpMetadata: { contentType: file.type },
 	});
-	await getDb(env).update(users).set({ avatarKey: key }).where(eq(users.id, user.id));
+	await syncPersonalIdentity(getDb(env), {
+		userId: user.id,
+		name: user.name,
+		avatarKey: key,
+	});
 
 	return NextResponse.json({ ok: true });
 }
@@ -69,7 +72,11 @@ export async function DELETE(request: Request) {
 
 	if (user.avatarKey) {
 		await env.BUCKET.delete(user.avatarKey);
-		await getDb(env).update(users).set({ avatarKey: null }).where(eq(users.id, user.id));
 	}
+	await syncPersonalIdentity(getDb(env), {
+		userId: user.id,
+		name: user.name,
+		avatarKey: null,
+	});
 	return NextResponse.json({ ok: true });
 }

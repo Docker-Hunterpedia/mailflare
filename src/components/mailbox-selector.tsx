@@ -142,11 +142,21 @@ export function MailboxSelector() {
 			const detail = (event as CustomEvent<ProfileAvatarChangedDetail>).detail;
 			setAvatarUrl(detail?.url ?? getProfileAvatarUrl());
 			setHasAvatar(true);
+			setMailboxAvatarUrls((current) => {
+				const next = { ...current };
+				const version = Date.now();
+				for (const mailbox of mailboxes) {
+					if (mailbox.type === "personal") {
+						next[mailbox.id] = `/api/mailboxes/${mailbox.id}/avatar?v=${version}`;
+					}
+				}
+				return next;
+			});
 		}
 
 		window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, onAvatarChanged);
 		return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, onAvatarChanged);
-	}, []);
+	}, [mailboxes]);
 
 	useEffect(() => {
 		function onNameChanged(event: Event) {

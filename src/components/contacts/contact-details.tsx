@@ -97,7 +97,7 @@ export function ContactDetailsTrigger({
 						<DialogDescription>Update how this contact appears in your mailbox.</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-5">
-						<div className="flex items-center gap-4">
+						<div className="flex flex-col items-start gap-4">
 							<ContactAvatarForm
 								mailboxId={mailboxId}
 								address={address}
@@ -105,10 +105,6 @@ export function ContactDetailsTrigger({
 								hasAvatar={contact?.hasAvatar ?? false}
 								onAvatarChange={(hasAvatar) => setContact((current) => current ? { ...current, hasAvatar } : current)}
 							/>
-							<div className="min-w-0">
-								<p className="truncate font-medium text-neutral-900">{shownName}</p>
-								<p className="truncate text-sm text-neutral-500">{contact?.email ?? address}</p>
-							</div>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="contact-display-name">Name</Label>
@@ -117,6 +113,14 @@ export function ContactDetailsTrigger({
 								value={displayName}
 								onChange={(event) => setDisplayName(event.target.value)}
 								disabled={loading || saving}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="contact-email">Email</Label>
+							<Input
+								id="contact-email"
+								value={contact?.email ?? address}
+								disabled
 							/>
 						</div>
 						<div className="grid gap-3 rounded-lg bg-neutral-50 p-3 text-sm sm:grid-cols-2">

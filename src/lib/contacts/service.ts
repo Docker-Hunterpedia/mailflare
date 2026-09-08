@@ -4,6 +4,7 @@ import { contacts, routingRules } from "@/db/schema";
 import { getFirstEmailAddressEntry, normalizeEmailAddress } from "@/lib/email/address";
 import type { BlockContactInput, ContactInput, MessageContactNames } from "@/lib/contacts/types";
 import { getContactId, getContactNameFromAddress } from "@/lib/contacts/utils";
+import { importGravatarAvatar } from "@/lib/contacts/gravatar";
 
 export async function upsertContactFromAddress(env: CloudflareEnv, input: ContactInput) {
 	const email = normalizeEmailAddress(input.address);
@@ -42,6 +43,10 @@ export async function upsertContactFromAddress(env: CloudflareEnv, input: Contac
 		source: input.source,
 		lastSeenAt: now,
 	});
+	const avatarKey = await importGravatarAvatar(env, input.userId, email);
+	if (avatarKey) {
+		await db.update(contacts).set({ avatarKey }).where(eq(contacts.id, id));
+	}
 
 	const [created] = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1);
 	return created ?? null;
@@ -116,6 +121,10 @@ export async function blockContact(env: CloudflareEnv, input: BlockContactInput)
 			blocked: true,
 			lastSeenAt: new Date(),
 		});
+		const avatarKey = await importGravatarAvatar(env, input.userId, email);
+		if (avatarKey) {
+			await db.update(contacts).set({ avatarKey }).where(eq(contacts.id, contactId));
+		}
 	}
 
 	const [existingRule] = await db

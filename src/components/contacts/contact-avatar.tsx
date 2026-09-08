@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import type { ContactAvatarProps } from "./contact-avatar-types";
 import {
 	getContactAvatarInitial,
-	getGravatarAvatarUrl,
 	getManagedContactAvatarUrl,
 } from "./contact-avatar-utils";
 
@@ -16,6 +15,7 @@ export function ContactAvatar({
 	address,
 	name,
 	hasManagedAvatar = false,
+	managedAvatarUrl,
 	className,
 }: ContactAvatarProps) {
 	const [managedAvatar, setManagedAvatar] = useState(hasManagedAvatar);
@@ -28,7 +28,7 @@ export function ContactAvatar({
 		setAvatarUrl(null);
 		setImageFailed(false);
 		setAvatarVersion(0);
-	}, [address, hasManagedAvatar, mailboxId]);
+	}, [address, hasManagedAvatar, mailboxId, managedAvatarUrl]);
 
 	useEffect(() => {
 		function onAvatarChanged(event: Event) {
@@ -44,19 +44,17 @@ export function ContactAvatar({
 	}, [address]);
 
 	useEffect(() => {
-		let cancelled = false;
 		setImageFailed(false);
+		if (managedAvatarUrl) {
+			setAvatarUrl(managedAvatarUrl);
+			return;
+		}
 		if (managedAvatar && mailboxId) {
 			setAvatarUrl(getManagedContactAvatarUrl(mailboxId, address, avatarVersion));
 			return;
 		}
-		void getGravatarAvatarUrl(address).then((url) => {
-			if (!cancelled) setAvatarUrl(url);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [address, avatarVersion, mailboxId, managedAvatar]);
+		setAvatarUrl(null);
+	}, [address, avatarVersion, mailboxId, managedAvatar, managedAvatarUrl]);
 
 	if (avatarUrl && !imageFailed) {
 		return (
@@ -66,7 +64,8 @@ export function ContactAvatar({
 				alt=""
 				className={cn("h-8 w-8 shrink-0 rounded-full border border-neutral-200 object-cover", className)}
 				onError={() => {
-					if (managedAvatar) setManagedAvatar(false);
+					if (managedAvatarUrl) setImageFailed(true);
+					else if (managedAvatar) setManagedAvatar(false);
 					else setImageFailed(true);
 				}}
 			/>

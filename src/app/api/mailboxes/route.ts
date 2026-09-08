@@ -19,6 +19,9 @@ export async function GET(request: Request) {
 	return NextResponse.json({
 		mailboxes: await Promise.all(rows.map(async (mailbox) => ({
 			...mailbox,
+			...(mailbox.userId === user.id && mailbox.type === "personal"
+				? { displayName: user.name, hasAvatar: !!user.avatarKey }
+				: {}),
 			senderAddresses: await getMailboxDomainAddresses(db, mailbox),
 		}))),
 		canCreateShared: user.role === "admin" && entitlements.canManageAccounts,

@@ -151,6 +151,7 @@ export function ConversationMessageCard({
 						address={message.fromAddr}
 						name={sender}
 						hasManagedAvatar={message.fromContactHasAvatar}
+						managedAvatarUrl={outbound && mailboxId ? `/api/mailboxes/${mailboxId}/avatar` : undefined}
 					/>
 					<span className="min-w-0 flex-1">
 						<div className="flex flex-col">

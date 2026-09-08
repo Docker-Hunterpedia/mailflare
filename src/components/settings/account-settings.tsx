@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChangePasswordForm } from "./change-password-form";
+import { MfaSettings } from "./mfa-settings";
 import { ForwardingEmailForm } from "./forwarding-email-form";
 import { MailboxSignatureForm } from "./mailbox-signature-form";
 import { ProfileForm } from "./profile-form";
@@ -92,6 +93,13 @@ export function AccountSettings() {
 						<p className="mt-1 text-sm text-neutral-500">Use at least 8 characters for your new password.</p>
 					</div>
 					<ChangePasswordForm />
+				</div>
+				<div className="space-y-4 rounded-3xl bg-white p-6">
+					<div>
+						<h3 className="text-lg font-semibold text-neutral-900">Two-factor authentication</h3>
+						<p className="mt-1 text-sm text-neutral-500">Require a code from an authenticator app when signing in.</p>
+					</div>
+					<MfaSettings />
 				</div>
 			</section>
 		</div>

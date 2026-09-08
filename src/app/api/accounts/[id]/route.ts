@@ -7,6 +7,7 @@ import { requireTeamAdmin } from "../utils";
 import { getLicenseEntitlements } from "@/lib/licenses/service";
 import type { AccountRouteParams } from "./types";
 import { selectAccountById, updateAccountCredentials } from "./utils";
+import { deleteUserSessions } from "@/lib/auth/session";
 
 export async function GET(request: Request, { params }: AccountRouteParams) {
 	const access = await requireTeamAdmin(request);
@@ -46,7 +47,9 @@ export async function PATCH(request: Request, { params }: AccountRouteParams) {
 	if (!canForwardEmail && parsed.data.forwardingEmail && parsed.data.forwardingEmail !== account.forwardingEmail) {
 		return NextResponse.json({ error: "A Pro or Team license is required for email forwarding" }, { status: 403 });
 	}
-	await updateAccountCredentials(db, id, { name: parsed.data.name, password: null });
+	await updateAccountCredentials(db, id, { name: parsed.data.name, password: parsed.data.password ?? null });
+	// A password set by an admin is a reset: whoever held the old one is signed out.
+	if (parsed.data.password) await deleteUserSessions(access.env, id);
 	await db.update(users).set({
 		role: parsed.data.role,
 		disabled: parsed.data.disabled,

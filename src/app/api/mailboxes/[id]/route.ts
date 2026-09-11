@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/cookies";
 import { getEnv } from "@/lib/cloudflare";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import { ensureMailboxDomainRouting, removeMailboxDomainRouting } from "@/lib/mailboxes/domain-addresses";
+import { isPrimaryMailbox, tracksAccountIdentity } from "@/lib/profile/identity-utils";
 import { syncPersonalIdentity } from "@/lib/profile/sync";
 import { updateMailboxSchema } from "@/lib/validators";
 import type { MailboxRouteParams } from "./types";
@@ -26,15 +27,15 @@ export async function GET(request: Request, { params }: MailboxRouteParams) {
 		return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 	}
 	const { avatarKey, ownerName, ownerAvatarKey, ...mailboxDetails } = mailbox;
-	const personal = mailbox.type === "personal";
+	const identity = tracksAccountIdentity(mailbox, user.email);
 
 	return NextResponse.json({
 		mailbox: {
 			...mailboxDetails,
-			displayName: personal ? ownerName : mailbox.displayName,
-			hasAvatar: personal ? !!ownerAvatarKey : !!avatarKey,
+			displayName: identity ? ownerName : mailbox.displayName,
+			hasAvatar: identity ? !!ownerAvatarKey : !!avatarKey,
 			permission: access.permission,
-			isPrimary: `${mailbox.localPart}@${mailbox.hostname}` === user.email,
+			isPrimary: isPrimaryMailbox(mailbox, user.email),
 		},
 	});
 }
@@ -58,7 +59,9 @@ export async function PATCH(request: Request, { params }: MailboxRouteParams) {
 	}
 
 	const updateValues = getMailboxUpdateValues(parsed.data);
-	if (existing.type === "personal" && "displayName" in parsed.data) {
+	// Only the primary mailbox carries the account name; renaming any other
+	// mailbox writes to that mailbox alone.
+	if (tracksAccountIdentity(existing, user.email) && "displayName" in parsed.data) {
 		const name = parsed.data.displayName?.trim();
 		if (!name) {
 			return NextResponse.json({ error: "A valid account name is required" }, { status: 400 });
@@ -95,15 +98,15 @@ export async function PATCH(request: Request, { params }: MailboxRouteParams) {
 
 	const [mailbox] = await selectMailboxForUser(db, user.id, id);
 	const { avatarKey, ownerName, ownerAvatarKey, ...mailboxDetails } = mailbox!;
-	const personal = mailbox!.type === "personal";
+	const identity = tracksAccountIdentity(mailbox!, user.email);
 
 	return NextResponse.json({
 		mailbox: {
 			...mailboxDetails,
-			displayName: personal ? ownerName : mailbox!.displayName,
-			hasAvatar: personal ? !!ownerAvatarKey : !!avatarKey,
+			displayName: identity ? ownerName : mailbox!.displayName,
+			hasAvatar: identity ? !!ownerAvatarKey : !!avatarKey,
 			permission: access.permission,
-			isPrimary: `${mailbox!.localPart}@${mailbox!.hostname}` === user.email,
+			isPrimary: isPrimaryMailbox(mailbox!, user.email),
 		},
 	});
 }

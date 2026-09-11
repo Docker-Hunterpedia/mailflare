@@ -9,6 +9,7 @@ import { getContactDisplayNameMap } from "@/lib/contacts/service";
 import { getFirstEmailAddressEntry, normalizeEmailAddress } from "@/lib/email/address";
 import { buildSnippet } from "@/lib/email/parse";
 import { getMailboxAccessLevel, listAccessibleMailboxes } from "@/lib/mailboxes/access";
+import { tracksAccountIdentity } from "@/lib/profile/identity-utils";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -175,7 +176,7 @@ export async function GET(request: Request) {
 	const mailboxNameMap = new Map(
 		accessibleMailboxes.map((mailbox) => [
 			mailbox.id,
-			mailbox.userId === user.id && mailbox.type === "personal"
+			mailbox.userId === user.id && tracksAccountIdentity(mailbox, user.email)
 				? user.name
 				: mailbox.displayName ?? mailbox.localPart,
 		]),

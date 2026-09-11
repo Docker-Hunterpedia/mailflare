@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { mailboxes, users } from "@/db/schema";
+import { domains, mailboxes, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth/cookies";
 import { getEnv } from "@/lib/cloudflare";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
@@ -11,6 +11,7 @@ import {
 	avatarKeyFor,
 	isUploadedAvatarFile,
 } from "@/app/api/profile/avatar/utils";
+import { tracksAccountIdentity } from "@/lib/profile/identity-utils";
 import { syncPersonalIdentity } from "@/lib/profile/sync";
 import type { MailboxAvatarRouteParams } from "./types";
 import { mailboxAvatarKeyFor } from "./utils";
@@ -27,13 +28,19 @@ export async function GET(request: Request, { params }: MailboxAvatarRouteParams
 		.select({
 			avatarKey: mailboxes.avatarKey,
 			type: mailboxes.type,
+			localPart: mailboxes.localPart,
+			hostname: domains.hostname,
+			ownerEmail: users.email,
 			ownerAvatarKey: users.avatarKey,
 		})
 		.from(mailboxes)
+		.innerJoin(domains, eq(mailboxes.domainId, domains.id))
 		.innerJoin(users, eq(mailboxes.userId, users.id))
 		.where(eq(mailboxes.id, id))
 		.limit(1);
-	const avatarKey = mailbox?.type === "personal" ? mailbox.ownerAvatarKey : mailbox?.avatarKey;
+	const avatarKey = mailbox && tracksAccountIdentity(mailbox, mailbox.ownerEmail)
+		? mailbox.ownerAvatarKey
+		: mailbox?.avatarKey;
 	if (!avatarKey) return new Response("Not found", { status: 404 });
 
 	const object = await env.BUCKET.get(avatarKey);
@@ -75,18 +82,28 @@ export async function POST(request: Request, { params }: MailboxAvatarRouteParam
 	}
 
 	const [mailbox] = await db
-		.select({ userId: mailboxes.userId, type: mailboxes.type, ownerName: users.name })
+		.select({
+			userId: mailboxes.userId,
+			type: mailboxes.type,
+			localPart: mailboxes.localPart,
+			hostname: domains.hostname,
+			ownerName: users.name,
+			ownerEmail: users.email,
+		})
 		.from(mailboxes)
+		.innerJoin(domains, eq(mailboxes.domainId, domains.id))
 		.innerJoin(users, eq(mailboxes.userId, users.id))
 		.where(eq(mailboxes.id, id))
 		.limit(1);
 	if (!mailbox) return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
 
-	const key = mailbox.type === "personal" ? avatarKeyFor(mailbox.userId) : mailboxAvatarKeyFor(id);
+	// The primary mailbox shares the account avatar; every other mailbox stores its own.
+	const identity = tracksAccountIdentity(mailbox, mailbox.ownerEmail);
+	const key = identity ? avatarKeyFor(mailbox.userId) : mailboxAvatarKeyFor(id);
 	await env.BUCKET.put(key, await file.arrayBuffer(), {
 		httpMetadata: { contentType: file.type },
 	});
-	if (mailbox.type === "personal") {
+	if (identity) {
 		await syncPersonalIdentity(db, {
 			userId: mailbox.userId,
 			name: mailbox.ownerName,

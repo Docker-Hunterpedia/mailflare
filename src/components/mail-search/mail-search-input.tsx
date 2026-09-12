@@ -6,7 +6,7 @@ import { useMailSearch } from "./mail-search-context";
 import { useShortcuts } from "@/components/shortcuts";
 
 export function MailSearchInput() {
-	const { query, setQuery } = useMailSearch();
+	const { input: query, setQuery } = useMailSearch();
 	const { openCommandPalette, shortcutsEnabled, shortcutsPreferenceLoading } = useShortcuts();
 	const showShortcutHints = shortcutsEnabled && !shortcutsPreferenceLoading;
 

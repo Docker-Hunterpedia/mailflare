@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, Check, LogOut, Settings, ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useSelectedMailbox } from "@/components/mailbox-provider";
+import { isIdentityMailbox } from "@/components/mailbox-provider-utils";
 import { useMessageCounts } from "@/hooks/use-message-counts";
 import { authFetch } from "@/lib/auth/client";
 import { logoutClientSession } from "@/lib/auth/logout";
@@ -146,7 +147,7 @@ export function MailboxSelector() {
 				const next = { ...current };
 				const version = Date.now();
 				for (const mailbox of mailboxes) {
-					if (mailbox.type === "personal") {
+					if (isIdentityMailbox(mailbox)) {
 						next[mailbox.id] = `/api/mailboxes/${mailbox.id}/avatar?v=${version}`;
 					}
 				}

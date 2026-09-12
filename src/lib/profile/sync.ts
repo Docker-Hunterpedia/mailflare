@@ -1,8 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import type { AppDatabase } from "@/db";
-import { contacts, mailboxes, users } from "@/db/schema";
+import { contacts, domains, mailboxes, users } from "@/db/schema";
 import { getContactId } from "@/lib/contacts/utils";
 import { getMailboxDomainAddresses } from "@/lib/mailboxes/domain-addresses";
+import { tracksAccountIdentity } from "./identity-utils";
 import type { PersonalIdentity } from "./sync-types";
 
 export async function syncPersonalIdentity(
@@ -14,40 +15,54 @@ export async function syncPersonalIdentity(
 		.set({ name: identity.name, avatarKey: identity.avatarKey })
 		.where(eq(users.id, identity.userId));
 
-	await db
-		.update(mailboxes)
-		.set({ displayName: identity.name, avatarKey: identity.avatarKey })
-		.where(and(eq(mailboxes.userId, identity.userId), eq(mailboxes.type, "personal")));
+	const [account] = await db
+		.select({ email: users.email })
+		.from(users)
+		.where(eq(users.id, identity.userId))
+		.limit(1);
 
 	const personalMailboxes = await db
-		.select()
+		.select({ mailbox: mailboxes, hostname: domains.hostname })
 		.from(mailboxes)
+		.innerJoin(domains, eq(mailboxes.domainId, domains.id))
 		.where(and(eq(mailboxes.userId, identity.userId), eq(mailboxes.type, "personal")));
-	const addresses = new Set(
-		(await Promise.all(
-			personalMailboxes.map((mailbox) => getMailboxDomainAddresses(db, mailbox)),
-		)).flat(),
-	);
 
-	for (const email of addresses) {
-		await db
-			.insert(contacts)
-			.values({
-				id: getContactId(identity.userId, email),
-				userId: identity.userId,
-				email,
-				displayName: identity.name,
-				avatarKey: identity.avatarKey,
-				source: "manual",
-			})
-			.onConflictDoUpdate({
-				target: [contacts.userId, contacts.email],
-				set: {
-					displayName: identity.name,
-					avatarKey: identity.avatarKey,
+	for (const { mailbox, hostname } of personalMailboxes) {
+		// Only the primary mailbox mirrors the profile. Secondary mailboxes keep
+		// the name and avatar they were given.
+		const isIdentityMailbox = tracksAccountIdentity(
+			{ localPart: mailbox.localPart, hostname, type: mailbox.type },
+			account?.email,
+		);
+		if (isIdentityMailbox) {
+			await db
+				.update(mailboxes)
+				.set({ displayName: identity.name, avatarKey: identity.avatarKey })
+				.where(eq(mailboxes.id, mailbox.id));
+		}
+		const displayName = isIdentityMailbox ? identity.name : mailbox.displayName ?? identity.name;
+		const avatarKey = isIdentityMailbox ? identity.avatarKey : mailbox.avatarKey;
+
+		for (const email of await getMailboxDomainAddresses(db, mailbox)) {
+			await db
+				.insert(contacts)
+				.values({
+					id: getContactId(identity.userId, email),
+					userId: identity.userId,
+					email,
+					displayName,
+					avatarKey,
 					source: "manual",
-				},
-			});
+				})
+				.onConflictDoUpdate({
+					target: [contacts.userId, contacts.email],
+					set: {
+						displayName,
+						avatarKey,
+						source: "manual",
+					},
+				});
+		}
 	}
 }
 

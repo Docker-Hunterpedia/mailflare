@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import {
 	clearMailboxesCache,
 	fetchMailboxOptions,
+	isIdentityMailbox,
 	SELECTED_MAILBOX_STORAGE_KEY,
 } from "./mailbox-provider-utils";
 import {
@@ -107,11 +108,12 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 		function updatePersonalMailboxNames(event: Event) {
 			const { name } = (event as CustomEvent<ProfileNameChangedDetail>).detail;
 			clearMailboxesCache();
+			// Only the primary mailbox follows the profile name; the rest keep their own.
 			setMailboxes((items) => items.map((mailbox) => (
-				mailbox.type === "personal" ? { ...mailbox, displayName: name } : mailbox
+				isIdentityMailbox(mailbox) ? { ...mailbox, displayName: name } : mailbox
 			)));
 			setSelectedMailboxState((mailbox) => (
-				mailbox?.type === "personal" ? { ...mailbox, displayName: name } : mailbox
+				mailbox && isIdentityMailbox(mailbox) ? { ...mailbox, displayName: name } : mailbox
 			));
 		}
 
@@ -123,10 +125,10 @@ export function MailboxProvider({ children }: { children: ReactNode }) {
 		function updatePersonalMailboxAvatars() {
 			clearMailboxesCache();
 			setMailboxes((items) => items.map((mailbox) => (
-				mailbox.type === "personal" ? { ...mailbox, hasAvatar: true } : mailbox
+				isIdentityMailbox(mailbox) ? { ...mailbox, hasAvatar: true } : mailbox
 			)));
 			setSelectedMailboxState((mailbox) => (
-				mailbox?.type === "personal" ? { ...mailbox, hasAvatar: true } : mailbox
+				mailbox && isIdentityMailbox(mailbox) ? { ...mailbox, hasAvatar: true } : mailbox
 			));
 		}
 

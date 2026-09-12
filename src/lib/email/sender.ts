@@ -4,6 +4,7 @@ import { domains, mailboxes, users } from "@/db/schema";
 import { getMailboxAccessLevel } from "@/lib/mailboxes/access";
 import { formatEmailAddress, getEmailAddress } from "@/lib/email/address";
 import { getMailboxDomainAddresses } from "@/lib/mailboxes/domain-addresses";
+import { resolveMailboxDisplayName } from "@/lib/profile/identity-utils";
 
 export async function getAuthorizedSenderAddress(
 	env: CloudflareEnv,
@@ -22,6 +23,7 @@ export async function getAuthorizedSenderAddress(
 		displayName: mailboxes.displayName,
 		type: mailboxes.type,
 		ownerName: users.name,
+		ownerEmail: users.email,
 		hostname: domains.hostname,
 		domainId: mailboxes.domainId,
 		useAllDomains: mailboxes.useAllDomains,
@@ -48,7 +50,9 @@ export async function getAuthorizedSenderAddress(
 		throw new Error("Sender address does not match the selected mailbox");
 	}
 	const senderAddress = requestedAddress.toLowerCase();
-	const senderName = mailbox.type === "personal" ? mailbox.ownerName : mailbox.displayName;
+	// The primary mailbox sends under the account name; every other mailbox
+	// sends under its own.
+	const senderName = resolveMailboxDisplayName(mailbox, mailbox.ownerEmail, mailbox.ownerName);
 
 	if (access.canSendAs) {
 		return {

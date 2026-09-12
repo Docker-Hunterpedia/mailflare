@@ -29,6 +29,7 @@ const MIGRATION_NAMES = [
 	"0027_add_domain_sending_intent.sql",
 	"0028_add_keyboard_shortcuts_setting.sql",
 	"0029_add_spam_protection.sql",
+	"0030_add_message_search_index.sql",
 ];
 
 const INITIAL_SCHEMA_SQL = `
@@ -61,6 +62,10 @@ CREATE TABLE IF NOT EXISTS messages (id text PRIMARY KEY NOT NULL, user_id text 
 CREATE INDEX IF NOT EXISTS messages_user_created_idx ON messages(user_id, created_at);
 CREATE INDEX IF NOT EXISTS messages_mailbox_idx ON messages(mailbox_id);
 CREATE INDEX IF NOT EXISTS messages_folder_idx ON messages(folder_id);
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(subject, from_addr, to_addr, cc_addr, text_body, html_body, content='messages', content_rowid='rowid', tokenize='unicode61 remove_diacritics 2');
+CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN INSERT INTO messages_fts(rowid, subject, from_addr, to_addr, cc_addr, text_body, html_body) VALUES (new.rowid, new.subject, new.from_addr, new.to_addr, new.cc_addr, new.text_body, new.html_body); END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN INSERT INTO messages_fts(messages_fts, rowid, subject, from_addr, to_addr, cc_addr, text_body, html_body) VALUES ('delete', old.rowid, old.subject, old.from_addr, old.to_addr, old.cc_addr, old.text_body, old.html_body); END;
+CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE OF subject, from_addr, to_addr, cc_addr, text_body, html_body ON messages BEGIN INSERT INTO messages_fts(messages_fts, rowid, subject, from_addr, to_addr, cc_addr, text_body, html_body) VALUES ('delete', old.rowid, old.subject, old.from_addr, old.to_addr, old.cc_addr, old.text_body, old.html_body); INSERT INTO messages_fts(rowid, subject, from_addr, to_addr, cc_addr, text_body, html_body) VALUES (new.rowid, new.subject, new.from_addr, new.to_addr, new.cc_addr, new.text_body, new.html_body); END;
 CREATE INDEX IF NOT EXISTS messages_thread_idx ON messages(mailbox_id, thread_id);
 CREATE INDEX IF NOT EXISTS messages_provider_message_idx ON messages(mailbox_id, provider_message_id);
 CREATE INDEX IF NOT EXISTS messages_raw_r2_key_idx ON messages(raw_r2_key);
@@ -116,14 +121,32 @@ export async function migrateCleanDatabase(db: D1Database): Promise<boolean> {
 		);
 	}
 
-	const schemaStatements = INITIAL_SCHEMA_SQL
-		.split(";")
-		.map((statement) => statement.trim())
-		.filter(Boolean)
-		.map((statement) => db.prepare(statement));
+	const schemaStatements = splitSqlStatements(INITIAL_SCHEMA_SQL).map((statement) => db.prepare(statement));
 	const migrationStatements = MIGRATION_NAMES.map((name) =>
 		db.prepare("INSERT OR IGNORE INTO d1_migrations (name) VALUES (?)").bind(name),
 	);
 	await db.batch([...schemaStatements, ...migrationStatements]);
 	return true;
+}
+
+/**
+ * Split the bootstrap SQL into statements. A plain split on ";" would cut a
+ * trigger body apart, so pieces are joined back together until every BEGIN
+ * has its END.
+ */
+export function splitSqlStatements(sqlText: string): string[] {
+	const statements: string[] = [];
+	let current = "";
+	for (const piece of sqlText.split(";")) {
+		current = current ? `${current};${piece}` : piece;
+		const opened = (current.match(/\bBEGIN\b/gi) ?? []).length;
+		const closed = (current.match(/\bEND\b/gi) ?? []).length;
+		if (opened > closed) continue;
+		const statement = current.trim();
+		if (statement) statements.push(statement);
+		current = "";
+	}
+	const rest = current.trim();
+	if (rest) statements.push(rest);
+	return statements;
 }

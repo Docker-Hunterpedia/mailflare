@@ -57,6 +57,22 @@ Messages composed in Mailflare are sent as HTML with a plain-text alternative de
 
 The dashboard composer accepts up to 10 attachments, with a 10 MB limit per file and a 20 MB combined limit. Attachment metadata is stored in D1 and file content is stored in R2. Downloads require access to the mailbox containing the message.
 
+## Searching
+
+`GET /api/messages?q=...` (session) and `GET /api/v1/messages?q=...` (API key, `read` scope) accept the same query grammar, backed by an FTS5 index over subject, sender, recipients and body:
+
+| Syntax | Meaning |
+|---|---|
+| `invoice` | prefix match anywhere (`inv` finds "invoice") |
+| `"private window"` | exact phrase |
+| `-word` | exclude |
+| `from:maya`, `to:sam`, `subject:report` | restrict a term to one field (`to:` covers Cc) |
+| `has:attachment` | at least one non-inline attachment |
+| `is:unread`, `is:read`, `is:starred` | flags |
+| `after:2026-09-01`, `before:2026-09-30` | date bounds (UTC, `before` exclusive) |
+
+Terms combine with AND. Admins can check or rebuild the index with `GET` / `POST /api/admin/search-index`; triggers keep it current, so a rebuild is only needed after restoring a backup made before the index existed.
+
 ## Real-time updates
 
 Mailflare uses a Durable Object WebSocket hub to notify connected users after an inbound message is stored. Mailbox owners, the domain administrator, and delegated users receive events for mailboxes they can access.

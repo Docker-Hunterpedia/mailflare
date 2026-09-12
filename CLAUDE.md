@@ -79,6 +79,10 @@ Schema lives in one file: `src/db/schema/index.ts` (21 tables). Migrations are g
 
 The setup path only ever initializes an empty database — it refuses to touch one that already has tables.
 
+### Search is an FTS5 index kept by triggers
+
+`messages_fts` (migration 0030) is an external-content FTS5 table over `messages`; three triggers in the same migration keep it in sync on insert, update and delete, so no application code touches the index. `buildSearchConditions` in `src/lib/search/conditions.ts` turns the Gmail-style grammar (`src/lib/search/query-utils.ts`) into a `rowid IN (SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?)` predicate plus plain column filters. Two consequences: the bootstrap SQL in `src/lib/setup/migration.ts` is split with `splitSqlStatements`, which keeps trigger bodies whole; and the backup coverage check skips `messages_fts%`, since the shadow tables are derived and repopulate on restore. `wrangler d1 export` does not work on databases with virtual tables; the app's own JSON backup is unaffected.
+
 ### Access control
 
 Two independent auth surfaces:

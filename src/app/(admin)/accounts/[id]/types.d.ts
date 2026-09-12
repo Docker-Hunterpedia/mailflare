@@ -8,6 +8,8 @@ export type ManagedAccount = {
 	forwardingEmail: string | null;
 	canForwardEmail: boolean;
 	hasAvatar: boolean;
+	/** Only ever set client-side when an admin types a new password; never returned by the API. */
+	newPassword?: string;
 };
 
 export type ManagedMailbox = {

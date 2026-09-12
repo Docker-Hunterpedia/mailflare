@@ -119,6 +119,7 @@ export async function saveManagedAccount(account: ManagedAccount): Promise<void>
 			disabled: account.disabled,
 			canManageMailboxes: account.canManageMailboxes,
 			forwardingEmail: account.forwardingEmail,
+			password: account.newPassword || undefined,
 		}),
 	});
 	const data = (await response.json()) as { error?: string };

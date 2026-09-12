@@ -77,6 +77,33 @@ export const loginSchema = z.object({
 	password: z.string().min(1),
 });
 
+export const passwordResetRequestSchema = z.object({
+	email: z.string().trim().email(),
+});
+
+export const passwordResetConfirmSchema = z.object({
+	token: z.string().min(8).max(200),
+	password: z.string().min(8).max(128),
+});
+
+export const mfaVerifySchema = z.object({
+	challengeToken: z.string().min(8).max(200),
+	code: z.string().trim().min(6).max(32),
+});
+
+export const mfaEnrollSchema = z.object({
+	password: z.string().min(1),
+});
+
+export const mfaConfirmSchema = z.object({
+	code: z.string().trim().min(6).max(12),
+});
+
+export const mfaDisableSchema = z.object({
+	password: z.string().min(1),
+	code: z.string().trim().min(6).max(32),
+});
+
 export const domainSchema = z.object({
 	hostname: z.string().min(3),
 });
@@ -97,6 +124,11 @@ export const updateManagedAccountSchema = z.object({
 	forwardingEmail: z.preprocess(
 		(value) => (typeof value === "string" ? value.trim() : value),
 		z.string().email().or(z.literal("")).optional().transform((value) => value === undefined ? undefined : value || null),
+	),
+	/** Set a new password for the account; every session of that user is revoked. */
+	password: z.preprocess(
+		(value) => (typeof value === "string" ? value.trim() : value),
+		z.string().min(8).max(128).or(z.literal("")).optional().transform((value) => value || null),
 	),
 });
 

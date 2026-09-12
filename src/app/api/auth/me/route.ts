@@ -35,6 +35,7 @@ export async function GET(request: Request) {
 			keyboardShortcutsEnabled: user.keyboardShortcutsEnabled,
 			spamProtectionEnabled: user.spamProtectionEnabled,
 			hasAvatar: !!user.avatarKey,
+			mfaEnabled: user.totpEnabled,
 		},
 		hasMailboxes,
 		isSetup,

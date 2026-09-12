@@ -14,6 +14,11 @@ export const users = sqliteTable("users", {
 	canManageMailboxes: integer("can_manage_mailboxes", { mode: "boolean" }).notNull().default(false),
 	keyboardShortcutsEnabled: integer("keyboard_shortcuts_enabled", { mode: "boolean" }).notNull().default(true),
 	spamProtectionEnabled: integer("spam_protection_enabled", { mode: "boolean" }).notNull().default(true),
+	// TOTP second factor. The secret is written at enrolment and only counts
+	// once the user has proven a code from their authenticator.
+	totpSecret: text("totp_secret"),
+	totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
+	totpConfirmedAt: integer("totp_confirmed_at", { mode: "timestamp" }),
 	createdByUserId: text("created_by_user_id").references((): AnySQLiteColumn => users.id, { onDelete: "set null" }),
 	createdAt: integer("created_at", { mode: "timestamp" })
 		.notNull()
@@ -460,6 +465,58 @@ export const webhookDeliveries = sqliteTable(
 );
 
 export const sessions = sqliteTable("sessions", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	tokenHash: text("token_hash").notNull().unique(),
+	expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+	createdAt: integer("created_at", { mode: "timestamp" })
+		.notNull()
+		.$defaultFn(() => new Date()),
+});
+
+/** Single-use links mailed to a user's recovery address. Only the hash is stored. */
+export const passwordResetTokens = sqliteTable(
+	"password_reset_tokens",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		tokenHash: text("token_hash").notNull().unique(),
+		expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+		usedAt: integer("used_at", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(t) => [index("password_reset_tokens_user_idx").on(t.userId)],
+);
+
+/** One-time backup codes for accounts with TOTP, hashed like session tokens. */
+export const mfaRecoveryCodes = sqliteTable(
+	"mfa_recovery_codes",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		codeHash: text("code_hash").notNull().unique(),
+		usedAt: integer("used_at", { mode: "timestamp" }),
+		createdAt: integer("created_at", { mode: "timestamp" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(t) => [index("mfa_recovery_codes_user_idx").on(t.userId)],
+);
+
+/**
+ * A password that checked out but still needs a second factor. The challenge
+ * token stands in for the password on the follow-up request, so the password
+ * is never held client-side between the two steps.
+ */
+export const loginChallenges = sqliteTable("login_challenges", {
 	id: text("id").primaryKey(),
 	userId: text("user_id")
 		.notNull()

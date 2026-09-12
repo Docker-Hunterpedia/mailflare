@@ -11,6 +11,7 @@ import { verifyTurnstileToken } from "@/lib/auth/turnstile";
 import { readJsonBody } from "@/lib/http/request";
 import { RequestBodyTooLargeError } from "@/lib/http/errors";
 import { recordAuthActivity } from "@/lib/auth/activity";
+import { createLoginChallenge } from "@/lib/auth/login-challenge";
 
 export async function POST(request: Request) {
 	const env = getEnv();
@@ -42,6 +43,15 @@ export async function POST(request: Request) {
 	}
 	if (user.disabled) {
 		return NextResponse.json({ error: "Account disabled" }, { status: 403 });
+	}
+
+	// The password is right but a second factor is on: hand back a short-lived
+	// challenge instead of a session and let /api/auth/mfa/verify finish.
+	if (user.totpEnabled && user.totpSecret) {
+		const challengeToken = await createLoginChallenge(env, user.id);
+		const pending = NextResponse.json({ ok: true, mfaRequired: true, challengeToken });
+		pending.headers.set("Cache-Control", "no-store");
+		return pending;
 	}
 
 	const token = await createSession(env, user.id);

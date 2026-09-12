@@ -6,6 +6,7 @@ import { authenticateApiKey, requireScope } from "@/lib/api/auth";
 import { getDb } from "@/db";
 import { messages, users } from "@/db/schema";
 import { getMailboxAccessLevel, listAccessibleMailboxIds } from "@/lib/mailboxes/access";
+import { buildSearchConditions } from "@/lib/search/conditions";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
 	const url = new URL(request.url);
 	const mailboxId = url.searchParams.get("mailboxId");
 	const direction = url.searchParams.get("direction");
+	const query = url.searchParams.get("q")?.trim();
 	const limit = Math.min(Number(url.searchParams.get("limit") ?? 50), 100);
 
 	const db = getDb(env);
@@ -42,6 +44,7 @@ export async function GET(request: Request) {
 	if (direction === "inbound" || direction === "outbound") {
 		conditions.push(eq(messages.direction, direction));
 	}
+	if (query) conditions.push(...buildSearchConditions(query));
 
 	const rows = await db
 		.select()

@@ -63,6 +63,28 @@ Mailflare serves [JMAP](https://jmap.io) (RFC 8620 core and RFC 8621 mail, plus 
 
 The account id is the user id. Each Mailflare mailbox appears as a top-level JMAP Mailbox with system children (`inbox`, `drafts`, `sent`, `archive`, `junk`, `trash`) and one child per user folder; a message belongs to exactly one of them. Supported methods: `Mailbox/get|query|set` (folders only), `Thread/get`, `Email/get|query|set`, `SearchSnippet/get`, `Identity/get`, `EmailSubmission/set`, and `Core/echo`. `*/changes` return `cannotCalculateChanges`, so clients re-query on a state change; `/jmap/eventsource` pushes state changes by polling. `Email/set` creates drafts, updates `$seen` and `$flagged`, moves between mailboxes, and destroys (to Trash first, then permanently). `EmailSubmission/set` sends a draft and reports it destroyed, since the sent copy is a new message. Blob download and upload follow the Session's `downloadUrl` and `uploadUrl`.
 
+## Password reset and two-factor authentication
+
+`POST /api/auth/password-reset/request` with `{ email }` always answers `200 { ok: true }`; when the account exists and has a recovery email, a single-use link valid for 30 minutes is mailed there. `POST /api/auth/password-reset/confirm` with `{ token, password }` sets the password and signs the account out everywhere.
+
+When two-factor authentication is on, `POST /api/auth/login` returns `{ ok: true, mfaRequired: true, challengeToken }` instead of a session. `POST /api/auth/mfa/verify` with `{ challengeToken, code }` completes the sign-in; `code` is a 6-digit TOTP or one of the recovery codes. Challenges expire after 5 minutes. Enrolment, recovery codes and turning it off are under `/api/settings/mfa/*` (session auth) and always re-check the password.
+
+## Searching
+
+`GET /api/messages?q=...` (session) and `GET /api/v1/messages?q=...` (API key, `read` scope) accept the same query grammar, backed by an FTS5 index over subject, sender, recipients and body:
+
+| Syntax | Meaning |
+|---|---|
+| `invoice` | prefix match anywhere (`inv` finds "invoice") |
+| `"private window"` | exact phrase |
+| `-word` | exclude |
+| `from:maya`, `to:sam`, `subject:report` | restrict a term to one field (`to:` covers Cc) |
+| `has:attachment` | at least one non-inline attachment |
+| `is:unread`, `is:read`, `is:starred` | flags |
+| `after:2026-09-01`, `before:2026-09-30` | date bounds (UTC, `before` exclusive) |
+
+Terms combine with AND. Admins can check or rebuild the index with `GET` / `POST /api/admin/search-index`; triggers keep it current, so a rebuild is only needed after restoring a backup made before the index existed.
+
 ## Real-time updates
 
 Mailflare uses a Durable Object WebSocket hub to notify connected users after an inbound message is stored. Mailbox owners, the domain administrator, and delegated users receive events for mailboxes they can access.

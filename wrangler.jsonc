@@ -57,7 +57,7 @@
 	"send_email": [
 		{
 			"name": "EMAIL",
-			"remote": true,
+			"remote": false,
 		},
 	],
 	"d1_databases": [

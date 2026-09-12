@@ -33,7 +33,8 @@ export default function AccountDetailsPage() {
 		setMessage(null);
 		try {
 			await saveManagedAccount(account);
-			setMessage("Account details updated");
+			setAccount({ ...account, newPassword: "" });
+			setMessage(account.newPassword ? "Account details updated and password reset" : "Account details updated");
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "Unable to update account");
 		} finally {
@@ -97,6 +98,21 @@ export default function AccountDetailsPage() {
 						Incoming mail will also be sent to this verified Cloudflare Email Routing destination.
 					</p>
 				</div>}
+				<div className="space-y-2">
+					<Label htmlFor="account-new-password">Reset password (optional)</Label>
+					<Input
+						id="account-new-password"
+						type="password"
+						autoComplete="new-password"
+						minLength={8}
+						value={account.newPassword ?? ""}
+						onChange={(event) => setAccount({ ...account, newPassword: event.target.value })}
+						placeholder="Leave blank to keep the current password"
+					/>
+					<p className="text-xs leading-5 text-neutral-500">
+						Setting a password signs this account out everywhere. Share it with the user through another channel.
+					</p>
+				</div>
 				<label className="flex items-center gap-3 text-sm">
 					<Checkbox checked={!account.disabled} onChange={(event) => setAccount({ ...account, disabled: !event.target.checked })} />
 					Account enabled

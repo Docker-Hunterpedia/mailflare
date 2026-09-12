@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq, desc, and, like, or, count, countDistinct, isNull, isNotNull, inArray, lte, gt, max, notInArray, sql, sum } from "drizzle-orm";
+import { eq, desc, and, or, count, countDistinct, isNull, isNotNull, inArray, lte, gt, max, notInArray, sql, sum } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { getEnv } from "@/lib/cloudflare";
 import { getCurrentUser } from "@/lib/auth/cookies";
@@ -10,6 +10,7 @@ import { getFirstEmailAddressEntry, normalizeEmailAddress } from "@/lib/email/ad
 import { buildSnippet } from "@/lib/email/parse";
 import { getMailboxAccessLevel, listAccessibleMailboxes } from "@/lib/mailboxes/access";
 import { tracksAccountIdentity } from "@/lib/profile/identity-utils";
+import { buildSearchConditions } from "@/lib/search/conditions";
 
 export async function GET(request: Request) {
 	const env = getEnv();
@@ -76,18 +77,10 @@ export async function GET(request: Request) {
 	if (read === "unread") {
 		conditions.push(eq(messages.read, false));
 	}
-	if (query) {
-		const pattern = `%${query}%`;
-		const queryCondition = or(
-			like(messages.fromAddr, pattern),
-			like(messages.toAddr, pattern),
-			like(messages.subject, pattern),
-			like(messages.snippet, pattern),
-		);
-		if (queryCondition) conditions.push(queryCondition);
-	}
-	if (title) {
-		conditions.push(like(messages.subject, `%${title}%`));
+	if (query || title) {
+		// Operators (from:, has:attachment, before:) and free text go through the
+		// full-text index; `title` is the legacy subject filter and is folded in.
+		conditions.push(...buildSearchConditions(title ? `${query ?? ""} subject:"${title}"` : query ?? ""));
 	}
 	const where = and(...conditions);
 	// Messages that were never threaded (older rows, drafts) stand alone.
